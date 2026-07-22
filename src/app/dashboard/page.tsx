@@ -1,0 +1,192 @@
+import { getDashboardStats } from "@/lib/actions";
+import { VisitForm } from "@/components/visit-form";
+import { Card, StatCard } from "@/components/ui/card";
+import { formatDate } from "@/lib/utils";
+import Link from "next/link";
+import { MessageCircle, UserPlus } from "lucide-react";
+
+export default async function DashboardPage() {
+  const stats = await getDashboardStats();
+
+  const memberOptions = stats.members.map((m) => {
+    const familyIds = m.familyGroup
+      ? stats.members
+          .filter((x) => x.familyGroupId === m.familyGroupId)
+          .map((x) => x.id)
+      : [m.id];
+
+    const availableFamilyDiscounts = stats.members
+      .filter((x) => familyIds.includes(x.id))
+      .reduce((sum, x) => sum + x.discountCredits.length, 0);
+
+    return {
+      id: m.id,
+      name: m.name,
+      memberCode: m.memberCode,
+      hasPendingReferral: m.referredBy?.status === "pending",
+      availableFamilyDiscounts,
+    };
+  });
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-12">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Practice dashboard</h1>
+          <p className="mt-1 text-stone-400">
+            Members, stored discounts, referrals & simulated WhatsApp
+          </p>
+        </div>
+        <Link
+          href="/enroll"
+          className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300"
+        >
+          <UserPlus className="h-4 w-4" />
+          Enroll patient
+        </Link>
+      </div>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total members" value={stats.memberCount} />
+        <StatCard
+          label="Discounts earned (month)"
+          value={stats.earnedThisMonth}
+          hint="5% stored for next family treatment"
+        />
+        <StatCard
+          label="Discounts redeemed (month)"
+          value={stats.redeemedThisMonth}
+        />
+        <StatCard
+          label="Referral conversion"
+          value={`${stats.conversionRate}%`}
+        />
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <Card>
+          <h2 className="text-lg font-semibold text-white">Record visit</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Apply friend welcome discount & redeem stored family discounts
+          </p>
+          <div className="mt-6">
+            <VisitForm members={memberOptions} />
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <MessageCircle className="h-5 w-5 text-emerald-400" />
+            Simulated WhatsApp
+          </h2>
+          <div className="mt-4 max-h-96 space-y-3 overflow-y-auto">
+            {stats.messages.map((msg) => (
+              <div
+                key={msg.id}
+                className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3"
+              >
+                <p className="text-xs text-emerald-300">
+                  To: {msg.member?.name ?? msg.phone} · {formatDate(msg.createdAt)}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-stone-300">
+                  {msg.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <Card>
+          <h2 className="text-lg font-semibold text-white">All members</h2>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-stone-500">
+                  <th className="pb-2 pr-4">Name</th>
+                  <th className="pb-2 pr-4">Code</th>
+                  <th className="pb-2 pr-4">Stored</th>
+                  <th className="pb-2">Referrals</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.members.map((m) => (
+                  <tr key={m.id} className="border-b border-white/5">
+                    <td className="py-3 pr-4">
+                      <Link
+                        href={`/member/${m.memberCode}`}
+                        className="text-amber-300 hover:underline"
+                      >
+                        {m.name}
+                      </Link>
+                    </td>
+                    <td className="py-3 pr-4 font-mono text-xs text-stone-400">
+                      {m.memberCode}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {m.discountCredits.length > 0 ? (
+                        <span className="text-amber-300">
+                          {m.discountCredits.length}× 5%
+                        </span>
+                      ) : (
+                        <span className="text-stone-600">—</span>
+                      )}
+                    </td>
+                    <td className="py-3">{m.referralsMade.length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold text-white">Top referrers</h2>
+          <div className="mt-4 space-y-3">
+            {stats.topReferrers
+              .filter((m) => m.referralsMade.length > 0)
+              .map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-medium text-white">{m.name}</p>
+                    <p className="text-xs text-stone-500">
+                      {m.referralsMade.length} successful referral
+                      {m.referralsMade.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <span className="text-sm text-amber-300">
+                    {m.discountCredits.length} stored
+                  </span>
+                </div>
+              ))}
+            {stats.topReferrers.every((m) => m.referralsMade.length === 0) && (
+              <p className="text-sm text-stone-500">No completed referrals yet</p>
+            )}
+          </div>
+
+          <h3 className="mt-8 font-semibold text-white">Recent referrals</h3>
+          <div className="mt-3 space-y-2">
+            {stats.referrals.map((ref) => (
+              <div
+                key={ref.id}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm"
+              >
+                <p className="text-white">
+                  {ref.referrer.name} → {ref.referred.name}
+                </p>
+                <p className="text-xs text-stone-500">
+                  {ref.status === "completed" ? "Completed" : "Pending visit"} ·{" "}
+                  {ref.relationship}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

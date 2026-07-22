@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Practice {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  phone     String?
+  createdAt DateTime @default(now())
+  members   Member[]
+}
+
+model FamilyGroup {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  members   Member[]
+}
+
+model Member {
+  id            String           @id @default(cuid())
+  practiceId    String
+  familyGroupId String?
+  name          String
+  phone         String
+  memberCode    String           @unique
+  memberSince   DateTime         @default(now())
+  optedIn       Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  practice      Practice         @relation(fields: [practiceId], references: [id])
+  familyGroup   FamilyGroup?     @relation(fields: [familyGroupId], references: [id])
+  referralsMade Referral[]       @relation("Referrer")
+  referredBy    Referral?        @relation("Referred")
+  discountCredits DiscountCredit[]
+  visits        Visit[]
+  messages      WhatsAppMessage[]
+
+  @@index([practiceId])
+  @@index([familyGroupId])
+}
+
+model Referral {
+  id               String         @id @default(cuid())
+  referrerId       String
+  referredMemberId String         @unique
+  relationship     String         @default("family")
+  status           String         @default("pending")
+  createdAt        DateTime       @default(now())
+  completedAt      DateTime?
+  referrer         Member         @relation("Referrer", fields: [referrerId], references: [id])
+  referred         Member         @relation("Referred", fields: [referredMemberId], references: [id])
+  discountCredit   DiscountCredit?
+}
+
+model DiscountCredit {
+  id           String    @id @default(cuid())
+  memberId     String
+  referralId   String?   @unique
+  percent      Int       @default(5)
+  label        String
+  status       String    @default("available")
+  earnedAt     DateTime  @default(now())
+  redeemedAt   DateTime?
+  redeemedForMemberId String?
+  visitId      String?   @unique
+  member       Member    @relation(fields: [memberId], references: [id])
+  referral     Referral? @relation(fields: [referralId], references: [id])
+  visit        Visit?    @relation(fields: [visitId], references: [id])
+
+  @@index([memberId, status])
+}
+
+model Visit {
+  id                 String          @id @default(cuid())
+  memberId           String
+  treatmentValue     Float
+  friendDiscountPct  Int             @default(0)
+  storedDiscountPct  Int             @default(0)
+  discountAmount     Float           @default(0)
+  finalAmount        Float
+  notes              String?
+  createdAt          DateTime        @default(now())
+  member             Member          @relation(fields: [memberId], references: [id])
+  redeemedCredit     DiscountCredit?
+
+  @@index([memberId])
+}
+
+model WhatsAppMessage {
+  id        String   @id @default(cuid())
+  memberId  String?
+  phone     String
+  direction String   @default("outbound")
+  body      String
+  createdAt DateTime @default(now())
+  member    Member?  @relation(fields: [memberId], references: [id])
+
+  @@index([memberId])
+}

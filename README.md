@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dental Affiliate Card
 
-## Getting Started
+WhatsApp loyalty + referral demo for Storm Marketing Studio.
 
-First, run the development server:
+**Repository:** [github.com/FerozArshad/dental-affiliate-card](https://github.com/FerozArshad/dental-affiliate-card)
+
+**Key model:** No cash cashback. Referrers earn **5% off next family treatment**, stored on their Gold Card and redeemed at the front desk.
+
+## Quick start
 
 ```bash
+git clone https://github.com/FerozArshad/dental-affiliate-card.git
+cd dental-affiliate-card
+npm install
+npx prisma migrate dev --name init
+npm run db:seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo flows
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Home** — overview + links to pre-seeded member cards
+2. **Dashboard** (`/dashboard`) — practice stats, record visits, simulated WhatsApp
+3. **Enroll** (`/enroll`) — front desk enrolls new patient
+4. **Member card** (`/member/GOLD-SMITH1`) — patient Gold Card view
+5. **Referral** (`/refer/GOLD-JONES1`) — friend/family joins via referral link
 
-## Learn More
+## Discount process
 
-To learn more about Next.js, take a look at the following resources:
+| Step | Who | What happens |
+|------|-----|----------------|
+| 1 | Front desk | Enrolls patient → WhatsApp welcome + card link |
+| 2 | Patient | Shares `/refer/{code}` with family/friend |
+| 3 | Friend | Joins → pending referral created |
+| 4 | Front desk | Records visit → friend gets **5% off today** |
+| 5 | System | Referrer earns **5% stored discount** (not cash) |
+| 6 | Family | Next visit → front desk applies stored discount |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Pre-seeded demo data
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Emma Jones** (`GOLD-JONES1`) — has 1 stored discount (Lucy referred)
+- **Lucy Jones** (`GOLD-JONES2`) — completed visit with welcome discount
+- **Sarah & Tom Smith** — family group, no referrals yet
 
-## Deploy on Vercel
+## Tech
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16, React 19, Tailwind CSS 4
+- Prisma + SQLite (zero external setup for demo)
+- Server Actions for all mutations
