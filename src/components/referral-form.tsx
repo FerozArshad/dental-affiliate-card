@@ -24,14 +24,23 @@ export function ReferralForm({ referrerCode, referrerName }: {
       <Card className="text-center">
         <p className="text-lg font-semibold text-emerald-300">You&apos;re in!</p>
         <p className="mt-2 text-stone-400">
-          Book your visit to get 5% off. Your Gold Card:
+          You now have your own Gold Card. Book your visit for 5% off — then share
+          your link so others can join too.
         </p>
-        <Link
-          href={`/member/${state.memberCode}`}
-          className="mt-4 inline-block text-amber-300 hover:underline"
-        >
-          View card →
-        </Link>
+        <div className="mt-4 flex flex-col gap-2">
+          <Link
+            href={`/member/${state.memberCode}`}
+            className="rounded-xl bg-gradient-to-r from-amber-400 to-yellow-600 px-4 py-3 text-sm font-semibold text-stone-950"
+          >
+            Open my Gold Card →
+          </Link>
+          <Link
+            href={`/refer/${state.memberCode}`}
+            className="text-sm text-emerald-300 hover:underline"
+          >
+            Share my referral link
+          </Link>
+        </div>
       </Card>
     );
   }

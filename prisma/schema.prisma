@@ -8,12 +8,17 @@ datasource db {
 }
 
 model Practice {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  phone     String?
-  createdAt DateTime @default(now())
-  members   Member[]
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
+  phone               String?
+  monthlyFee          Float    @default(199)
+  prizeCampaignActive Boolean  @default(true)
+  prizeLabel          String   @default("Free hygiene clean")
+  doubleRewardActive  Boolean  @default(false)
+  googleReviewUrl     String   @default("https://g.page/r/demo-review")
+  createdAt           DateTime @default(now())
+  members             Member[]
 }
 
 model FamilyGroup {
@@ -24,72 +29,85 @@ model FamilyGroup {
 }
 
 model Member {
-  id            String           @id @default(cuid())
-  practiceId    String
-  familyGroupId String?
-  name          String
-  phone         String
-  memberCode    String           @unique
-  memberSince   DateTime         @default(now())
-  optedIn       Boolean          @default(true)
-  createdAt     DateTime         @default(now())
-  practice      Practice         @relation(fields: [practiceId], references: [id])
-  familyGroup   FamilyGroup?     @relation(fields: [familyGroupId], references: [id])
-  referralsMade Referral[]       @relation("Referrer")
-  referredBy    Referral?        @relation("Referred")
+  id              String            @id @default(cuid())
+  practiceId      String
+  familyGroupId   String?
+  name            String
+  phone           String
+  memberCode      String            @unique
+  memberSince     DateTime          @default(now())
+  optedIn         Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  practice        Practice          @relation(fields: [practiceId], references: [id])
+  familyGroup     FamilyGroup?      @relation(fields: [familyGroupId], references: [id])
+  referralsMade   Referral[]        @relation("Referrer")
+  referredBy      Referral?         @relation("Referred")
   discountCredits DiscountCredit[]
-  visits        Visit[]
-  messages      WhatsAppMessage[]
+  visits          Visit[]
+  messages        WhatsAppMessage[]
+  reviews         ReviewRequest[]
 
   @@index([practiceId])
   @@index([familyGroupId])
 }
 
 model Referral {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   referrerId       String
-  referredMemberId String         @unique
-  relationship     String         @default("family")
-  status           String         @default("pending")
-  createdAt        DateTime       @default(now())
+  referredMemberId String          @unique
+  relationship     String          @default("family")
+  status           String          @default("pending")
+  createdAt        DateTime        @default(now())
   completedAt      DateTime?
-  referrer         Member         @relation("Referrer", fields: [referrerId], references: [id])
-  referred         Member         @relation("Referred", fields: [referredMemberId], references: [id])
+  referrer         Member          @relation("Referrer", fields: [referrerId], references: [id])
+  referred         Member          @relation("Referred", fields: [referredMemberId], references: [id])
   discountCredit   DiscountCredit?
 }
 
 model DiscountCredit {
-  id           String    @id @default(cuid())
-  memberId     String
-  referralId   String?   @unique
-  percent      Int       @default(5)
-  label        String
-  status       String    @default("available")
-  earnedAt     DateTime  @default(now())
-  redeemedAt   DateTime?
+  id                  String    @id @default(cuid())
+  memberId            String
+  referralId          String?   @unique
+  percent             Int       @default(5)
+  label               String
+  status              String    @default("available")
+  earnedAt            DateTime  @default(now())
+  redeemedAt          DateTime?
   redeemedForMemberId String?
-  visitId      String?   @unique
-  member       Member    @relation(fields: [memberId], references: [id])
-  referral     Referral? @relation(fields: [referralId], references: [id])
-  visit        Visit?    @relation(fields: [visitId], references: [id])
+  visitId             String?   @unique
+  member              Member    @relation(fields: [memberId], references: [id])
+  referral            Referral? @relation(fields: [referralId], references: [id])
+  visit               Visit?    @relation(fields: [visitId], references: [id])
 
   @@index([memberId, status])
 }
 
 model Visit {
-  id                 String          @id @default(cuid())
-  memberId           String
-  treatmentValue     Float
-  friendDiscountPct  Int             @default(0)
-  storedDiscountPct  Int             @default(0)
-  discountAmount     Float           @default(0)
-  finalAmount        Float
-  notes              String?
-  createdAt          DateTime        @default(now())
-  member             Member          @relation(fields: [memberId], references: [id])
-  redeemedCredit     DiscountCredit?
+  id                String          @id @default(cuid())
+  memberId          String
+  treatmentValue    Float
+  friendDiscountPct Int             @default(0)
+  storedDiscountPct Int             @default(0)
+  discountAmount    Float           @default(0)
+  finalAmount       Float
+  notes             String?
+  fromReferral      Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  member            Member          @relation(fields: [memberId], references: [id])
+  redeemedCredit    DiscountCredit?
+  reviewRequest     ReviewRequest?
 
   @@index([memberId])
+}
+
+model ReviewRequest {
+  id        String   @id @default(cuid())
+  memberId  String
+  visitId   String   @unique
+  status    String   @default("sent")
+  createdAt DateTime @default(now())
+  member    Member   @relation(fields: [memberId], references: [id])
+  visit     Visit    @relation(fields: [visitId], references: [id])
 }
 
 model WhatsAppMessage {

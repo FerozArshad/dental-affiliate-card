@@ -67,10 +67,21 @@ export function VisitForm({ members }: { members: MemberOption[] }) {
         />
         <span>
           <span className="block text-sm font-medium text-white">
-            Apply stored 5% family discount
+            Apply stored family discount
           </span>
           <span className="block text-xs text-stone-500">
             Uses oldest available discount from the patient&apos;s family group (not cash).
+          </span>
+        </span>
+      </label>
+      <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+        <input type="checkbox" name="requestReview" defaultChecked className="mt-1" />
+        <span>
+          <span className="block text-sm font-medium text-white">
+            Send Google review request
+          </span>
+          <span className="block text-xs text-stone-500">
+            WhatsApp message with review link after visit (growth + social proof).
           </span>
         </span>
       </label>

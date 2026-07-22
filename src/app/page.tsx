@@ -36,8 +36,11 @@ export default async function HomePage() {
               Open practice dashboard <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
-          <Link href="/enroll">
-            <Button variant="secondary">Enroll a patient</Button>
+          <Link href="/desk">
+            <Button variant="secondary">Desk QR</Button>
+          </Link>
+          <Link href="/leaderboard">
+            <Button variant="secondary">Leaderboard</Button>
           </Link>
         </div>
       </section>
@@ -47,22 +50,22 @@ export default async function HomePage() {
           {
             icon: Gift,
             title: "Stored discounts",
-            text: "5% off next family treatment — not cash in a wallet",
+            text: "5–10% off next family treatment — not cash",
           },
           {
             icon: Users,
-            title: "Family sharing",
-            text: "Earned discounts usable by any family group member",
+            title: "Family sharing + tiers",
+            text: "Silver → Gold → Platinum as referrals grow",
           },
           {
             icon: MessageCircle,
-            title: "WhatsApp channel",
-            text: "Simulated messages for card delivery & notifications",
+            title: "WhatsApp + QR growth",
+            text: "One-tap share, desk QR, review requests",
           },
           {
             icon: Shield,
-            title: "GDC-safe framing",
-            text: "Credit toward treatment, compliant wording",
+            title: "ROI for practices",
+            text: "Referral revenue vs monthly fee on dashboard",
           },
         ].map(({ icon: Icon, title, text }) => (
           <Card key={title}>
@@ -97,9 +100,10 @@ export default async function HomePage() {
         <ol className="mt-4 space-y-3 text-sm text-stone-300">
           <li>1. Front desk enrolls patient → WhatsApp Gold Card sent</li>
           <li>2. Patient shares referral link with family/friend</li>
-          <li>3. Friend joins → gets 5% off their first visit</li>
-          <li>4. After visit, referrer earns 5% stored discount for family&apos;s next treatment</li>
-          <li>5. At next visit, front desk applies stored discount from the ledger</li>
+          <li>3. Friend joins → gets their own Gold Card + 5% off first visit</li>
+          <li>4. Friend can share their own link and grow the chain</li>
+          <li>5. After friend&apos;s visit, referrer earns 5% stored discount for family&apos;s next treatment</li>
+          <li>6. At next visit, front desk applies stored discount from the ledger</li>
         </ol>
       </section>
     </div>

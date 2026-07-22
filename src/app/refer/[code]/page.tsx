@@ -30,10 +30,17 @@ export default async function ReferPage({
       <div className="mt-8">
         <ReferralForm referrerCode={member.memberCode} referrerName={member.name} />
       </div>
-      <p className="mt-6 text-center text-xs text-stone-600">
-        After your visit, {member.name.split(" ")[0]} earns {REFERRAL_DISCOUNT_PERCENT}%
-        off their family&apos;s next treatment — stored on their card, not paid as cash.
-      </p>
+      <div className="mt-6 space-y-2 text-center text-xs text-stone-500">
+        <p>
+          After your visit, {member.name.split(" ")[0]} earns{" "}
+          {REFERRAL_DISCOUNT_PERCENT}% off their family&apos;s next treatment
+          (stored on their card — not cash).
+        </p>
+        <p>
+          You also get your own Gold Card and referral link, so you can invite
+          others and earn stored discounts too.
+        </p>
+      </div>
     </div>
   );
 }

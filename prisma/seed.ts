@@ -2,6 +2,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/db";
 
 async function main() {
+  await prisma.reviewRequest.deleteMany();
   await prisma.whatsAppMessage.deleteMany();
   await prisma.discountCredit.deleteMany();
   await prisma.visit.deleteMany();
@@ -15,6 +16,11 @@ async function main() {
       name: "Storm Dental Studio",
       slug: "storm-dental",
       phone: "+44 20 7946 0958",
+      monthlyFee: 199,
+      prizeCampaignActive: true,
+      prizeLabel: "Free hygiene clean",
+      doubleRewardActive: false,
+      googleReviewUrl: "https://g.page/r/demo-review",
     },
   });
 
@@ -70,13 +76,52 @@ async function main() {
     },
   });
 
-  const referral = await prisma.referral.create({
+  const mark = await prisma.member.create({
+    data: {
+      practiceId: practice.id,
+      name: "Mark Patel",
+      phone: "+44 7700 900789",
+      memberCode: "GOLD-PATEL1",
+      memberSince: new Date("2026-03-01"),
+    },
+  });
+
+  const nina = await prisma.member.create({
+    data: {
+      practiceId: practice.id,
+      name: "Nina Patel",
+      phone: "+44 7700 900790",
+      memberCode: "GOLD-PATEL2",
+      memberSince: new Date("2026-03-15"),
+    },
+  });
+
+  const referral1 = await prisma.referral.create({
     data: {
       referrerId: emma.id,
       referredMemberId: lucy.id,
       relationship: "family",
       status: "completed",
       completedAt: new Date("2026-02-22"),
+    },
+  });
+
+  const referral2 = await prisma.referral.create({
+    data: {
+      referrerId: emma.id,
+      referredMemberId: mark.id,
+      relationship: "friend",
+      status: "completed",
+      completedAt: new Date("2026-03-20"),
+    },
+  });
+
+  await prisma.referral.create({
+    data: {
+      referrerId: mark.id,
+      referredMemberId: nina.id,
+      relationship: "family",
+      status: "pending",
     },
   });
 
@@ -87,18 +132,42 @@ async function main() {
       friendDiscountPct: 5,
       discountAmount: 9,
       finalAmount: 171,
+      fromReferral: true,
       notes: "Hygiene visit — friend referral discount applied",
+    },
+  });
+
+  await prisma.visit.create({
+    data: {
+      memberId: mark.id,
+      treatmentValue: 420,
+      friendDiscountPct: 5,
+      discountAmount: 21,
+      finalAmount: 399,
+      fromReferral: true,
+      notes: "Whitening — referred by Emma",
     },
   });
 
   await prisma.discountCredit.create({
     data: {
       memberId: emma.id,
-      referralId: referral.id,
+      referralId: referral1.id,
       percent: 5,
       label: "5% off next family treatment",
       status: "available",
       earnedAt: new Date("2026-02-22"),
+    },
+  });
+
+  await prisma.discountCredit.create({
+    data: {
+      memberId: emma.id,
+      referralId: referral2.id,
+      percent: 7,
+      label: "7% off next family treatment",
+      status: "available",
+      earnedAt: new Date("2026-03-20"),
     },
   });
 
@@ -107,12 +176,12 @@ async function main() {
       {
         memberId: sarah.id,
         phone: sarah.phone,
-        body: "Welcome to Storm Dental Gold Card! Your member code is GOLD-SMITH1. Refer family & friends — they get 5% off, you earn 5% off your next family treatment.",
+        body: "Welcome to Storm Dental Gold Card! Your member code is GOLD-SMITH1. Refer family & friends — they get 5% off, you earn stored % off next family treatment.",
       },
       {
         memberId: emma.id,
         phone: emma.phone,
-        body: "Great news Emma! Lucy completed her visit. You've earned 5% off your next family treatment. Tap your card to view.",
+        body: "Great news Emma! You've reached Gold tier (2 referrals). Climb the leaderboard this month for a free hygiene clean.",
       },
       {
         memberId: lucy.id,
@@ -124,7 +193,10 @@ async function main() {
 
   console.log("Seed complete:");
   console.log(`  Practice: ${practice.name}`);
-  console.log(`  Members: ${[sarah, tom, emma, lucy].map((m) => m.memberCode).join(", ")}`);
+  console.log(
+    `  Members: ${[sarah, tom, emma, lucy, mark, nina].map((m) => m.memberCode).join(", ")}`
+  );
+  console.log("  Emma is Gold tier (2 completed referrals) — top of leaderboard");
 }
 
 main()

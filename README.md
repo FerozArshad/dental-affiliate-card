@@ -19,6 +19,18 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+## Growth features
+
+- **Tiers** — Silver (5%) → Gold (7%) → Platinum (10%) by completed referrals
+- **Leaderboard** — `/leaderboard` + monthly prize campaign toggle
+- **Double reward week** — admin toggle for 2× stored discounts
+- **One-tap WhatsApp share** + **invite family pack** on every card
+- **Desk QR** — `/desk` → scans to `/join` walk-in enroll
+- **Member QR** — each card shows QR for `/refer/CODE`
+- **Review engine** — optional Google review WhatsApp after visit
+- **ROI stats** — referral revenue vs monthly fee on dashboard
+- **Progress nudges** — admin can send tier progress WhatsApp
+
 ## Demo flows
 
 1. **Home** — overview + links to pre-seeded member cards

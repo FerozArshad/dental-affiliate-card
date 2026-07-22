@@ -6,6 +6,7 @@ import {
   DISCOUNT_LABEL,
   PRACTICE_NAME,
   REFERRAL_DISCOUNT_PERCENT,
+  getTier,
 } from "@/lib/constants";
 import { generateMemberCode } from "@/lib/utils";
 
@@ -17,14 +18,25 @@ async function getDefaultPractice() {
   return practice;
 }
 
-async function sendWhatsApp(
-  phone: string,
-  body: string,
-  memberId?: string
-) {
+async function sendWhatsApp(phone: string, body: string, memberId?: string) {
   await prisma.whatsAppMessage.create({
     data: { phone, body, memberId, direction: "outbound" },
   });
+}
+
+function formatGbp(amount: number) {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+  }).format(amount);
+}
+
+function revalidateAll() {
+  revalidatePath("/dashboard");
+  revalidatePath("/");
+  revalidatePath("/desk");
+  revalidatePath("/join");
+  revalidatePath("/leaderboard");
 }
 
 export async function enrollMember(formData: FormData) {
@@ -62,12 +74,11 @@ export async function enrollMember(formData: FormData) {
 
   await sendWhatsApp(
     phone,
-    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\n\nRefer family & friends — they get ${REFERRAL_DISCOUNT_PERCENT}% off their visit. You earn ${REFERRAL_DISCOUNT_PERCENT}% off your family's next treatment (stored on your card, not cash).`,
+    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\nTier: Silver (5% stored rewards)\n\nRefer family & friends — they get ${REFERRAL_DISCOUNT_PERCENT}% off. You earn stored % off your family's next treatment (not cash).`,
     member.id
   );
 
-  revalidatePath("/dashboard");
-  revalidatePath("/");
+  revalidateAll();
   return { success: true, memberCode: member.memberCode };
 }
 
@@ -83,7 +94,11 @@ export async function enrollViaReferral(formData: FormData) {
 
   const referrer = await prisma.member.findUnique({
     where: { memberCode: referrerCode },
-    include: { familyGroup: true },
+    include: {
+      familyGroup: true,
+      referralsMade: { where: { status: "completed" } },
+      practice: true,
+    },
   });
 
   if (!referrer) {
@@ -91,15 +106,19 @@ export async function enrollViaReferral(formData: FormData) {
   }
 
   let familyGroupId = referrer.familyGroupId;
-  if (!familyGroupId) {
-    const group = await prisma.familyGroup.create({
-      data: { name: `${referrer.name.split(" ")[1] ?? referrer.name} Family` },
-    });
-    await prisma.member.update({
-      where: { id: referrer.id },
-      data: { familyGroupId: group.id },
-    });
-    familyGroupId = group.id;
+  if (relationship === "family") {
+    if (!familyGroupId) {
+      const group = await prisma.familyGroup.create({
+        data: {
+          name: `${referrer.name.split(" ")[1] ?? referrer.name} Family`,
+        },
+      });
+      await prisma.member.update({
+        where: { id: referrer.id },
+        data: { familyGroupId: group.id },
+      });
+      familyGroupId = group.id;
+    }
   }
 
   let memberCode = generateMemberCode(name);
@@ -110,7 +129,7 @@ export async function enrollViaReferral(formData: FormData) {
   const member = await prisma.member.create({
     data: {
       practiceId: referrer.practiceId,
-      familyGroupId,
+      familyGroupId: relationship === "family" ? familyGroupId : undefined,
       name,
       phone,
       memberCode,
@@ -126,19 +145,24 @@ export async function enrollViaReferral(formData: FormData) {
     },
   });
 
+  const tier = getTier(referrer.referralsMade.length);
+  const remaining = tier.nextAt
+    ? Math.max(tier.nextAt - referrer.referralsMade.length, 0)
+    : 0;
+
   await sendWhatsApp(
     phone,
-    `Hi ${name}! Welcome to ${PRACTICE_NAME}.\n\nYou were referred by ${referrer.name}. Book your visit and get ${REFERRAL_DISCOUNT_PERCENT}% off your treatment today.\n\nYour member code: ${memberCode}`,
+    `Hi ${name}! Welcome to ${PRACTICE_NAME}.\n\nYou were referred by ${referrer.name}. Book your visit and get ${REFERRAL_DISCOUNT_PERCENT}% off today.\n\nYour Gold Card: ${memberCode}\nYou can refer others with your own link too.`,
     member.id
   );
 
   await sendWhatsApp(
     referrer.phone,
-    `${name} joined using your referral link (${relationship}). When they complete their first visit, you'll earn ${REFERRAL_DISCOUNT_PERCENT}% off your family's next treatment.`,
+    `${name} joined via your link (${relationship}). When they complete their first visit, you earn a stored family discount.\n\nYour tier: ${tier.name}. ${remaining > 0 ? `${remaining} more completed referral(s) to reach the next tier.` : "You're at the top tier!"}`,
     referrer.id
   );
 
-  revalidatePath("/dashboard");
+  revalidateAll();
   revalidatePath(`/member/${referrer.memberCode}`);
   return { success: true, memberCode: member.memberCode };
 }
@@ -147,6 +171,7 @@ export async function completeVisit(formData: FormData) {
   const memberId = String(formData.get("memberId") ?? "");
   const treatmentValue = Number(formData.get("treatmentValue"));
   const applyStoredDiscount = formData.get("applyStoredDiscount") === "on";
+  const requestReview = formData.get("requestReview") === "on";
   const notes = String(formData.get("notes") ?? "").trim();
 
   if (!memberId || !treatmentValue || treatmentValue <= 0) {
@@ -158,6 +183,7 @@ export async function completeVisit(formData: FormData) {
     include: {
       referredBy: { include: { referrer: true } },
       familyGroup: { include: { members: true } },
+      practice: true,
     },
   });
 
@@ -167,13 +193,14 @@ export async function completeVisit(formData: FormData) {
   let storedDiscountPct = 0;
   let discountAmount = 0;
   let redeemedCreditId: string | undefined;
+  const fromReferral = member.referredBy?.status === "pending";
 
-  if (member.referredBy?.status === "pending") {
+  if (fromReferral) {
     friendDiscountPct = REFERRAL_DISCOUNT_PERCENT;
     discountAmount += (treatmentValue * friendDiscountPct) / 100;
   }
 
-  if (applyStoredDiscount && member.familyGroupId) {
+  if (applyStoredDiscount) {
     const familyMemberIds = member.familyGroup?.members.map((m) => m.id) ?? [
       member.id,
     ];
@@ -202,6 +229,7 @@ export async function completeVisit(formData: FormData) {
       storedDiscountPct,
       discountAmount,
       finalAmount,
+      fromReferral,
       notes: notes || undefined,
     },
   });
@@ -224,8 +252,16 @@ export async function completeVisit(formData: FormData) {
     );
   }
 
-  if (member.referredBy?.status === "pending") {
+  if (fromReferral && member.referredBy) {
     const referral = member.referredBy;
+    const referrerCompleted = await prisma.referral.count({
+      where: { referrerId: referral.referrerId, status: "completed" },
+    });
+    const tier = getTier(referrerCompleted + 1);
+    const rewardPercent = member.practice.doubleRewardActive
+      ? tier.cashbackPercent * 2
+      : tier.cashbackPercent;
+
     await prisma.referral.update({
       where: { id: referral.id },
       data: { status: "completed", completedAt: new Date() },
@@ -235,21 +271,29 @@ export async function completeVisit(formData: FormData) {
       data: {
         memberId: referral.referrerId,
         referralId: referral.id,
-        percent: REFERRAL_DISCOUNT_PERCENT,
-        label: DISCOUNT_LABEL,
+        percent: rewardPercent,
+        label: `${rewardPercent}% off next family treatment`,
         status: "available",
       },
     });
 
     await sendWhatsApp(
       member.phone,
-      `Thanks for visiting! Your ${friendDiscountPct}% referral welcome discount was applied. Final amount: ${formatGbp(finalAmount)}`,
+      `Thanks for visiting! Your ${friendDiscountPct}% referral welcome discount was applied. Final amount: ${formatGbp(finalAmount)}\n\nOpen your Gold Card to refer others and earn your own stored discounts.`,
       member.id
     );
 
+    const nextTierHint = tier.nextAt
+      ? ` ${Math.max(tier.nextAt - (referrerCompleted + 1), 0)} more referral(s) to next tier.`
+      : " Platinum unlocked!";
+
     await sendWhatsApp(
       referral.referrer.phone,
-      `Great news! ${member.name} completed their visit.\n\nYou've earned ${REFERRAL_DISCOUNT_PERCENT}% off your family's next treatment — stored on your Gold Card (not cash). Tap your card to view.`,
+      `Great news! ${member.name} completed their visit.\n\nYou've earned ${rewardPercent}% off your family's next treatment (stored — not cash).\nTier: ${tier.name}.${nextTierHint}${
+        member.practice.prizeCampaignActive
+          ? `\n\nMonthly prize: ${member.practice.prizeLabel} — climb the leaderboard!`
+          : ""
+      }`,
       referral.referrerId
     );
   } else if (!redeemedCreditId) {
@@ -260,7 +304,23 @@ export async function completeVisit(formData: FormData) {
     );
   }
 
-  revalidatePath("/dashboard");
+  if (requestReview) {
+    await prisma.reviewRequest.create({
+      data: {
+        memberId: member.id,
+        visitId: visit.id,
+        status: "sent",
+      },
+    });
+
+    await sendWhatsApp(
+      member.phone,
+      `Thanks for visiting ${member.practice.name}!\n\nIf you were happy with your care, would you leave us a quick Google review?\n${member.practice.googleReviewUrl}\n\nHappy patients help families find great care.`,
+      member.id
+    );
+  }
+
+  revalidateAll();
   revalidatePath(`/member/${member.memberCode}`);
   if (member.referredBy) {
     revalidatePath(`/member/${member.referredBy.referrer.memberCode}`);
@@ -269,75 +329,139 @@ export async function completeVisit(formData: FormData) {
   return { success: true, finalAmount };
 }
 
-function formatGbp(amount: number) {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-  }).format(amount);
+export async function togglePrizeCampaign() {
+  const practice = await getDefaultPractice();
+  await prisma.practice.update({
+    where: { id: practice.id },
+    data: { prizeCampaignActive: !practice.prizeCampaignActive },
+  });
+  revalidateAll();
+  return { success: true };
+}
+
+export async function toggleDoubleReward() {
+  const practice = await getDefaultPractice();
+  await prisma.practice.update({
+    where: { id: practice.id },
+    data: { doubleRewardActive: !practice.doubleRewardActive },
+  });
+  revalidateAll();
+  return { success: true };
+}
+
+export async function sendProgressNudge(memberId: string) {
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    include: {
+      referralsMade: { where: { status: "completed" } },
+      practice: true,
+    },
+  });
+  if (!member) return { error: "Member not found" };
+
+  const tier = getTier(member.referralsMade.length);
+  const remaining = tier.nextAt
+    ? Math.max(tier.nextAt - member.referralsMade.length, 0)
+    : 0;
+
+  const body =
+    remaining > 0
+      ? `Hi ${member.name.split(" ")[0]}! You're ${remaining} completed referral(s) away from the next Gold Card tier.\n\nShare your link and earn a bigger stored family discount. ${member.practice.prizeCampaignActive ? `This month's prize: ${member.practice.prizeLabel}.` : ""}`
+      : `Hi ${member.name.split(" ")[0]}! You're Platinum — top tier. Keep sharing to stay on the monthly leaderboard${member.practice.prizeCampaignActive ? ` for ${member.practice.prizeLabel}` : ""}.`;
+
+  await sendWhatsApp(member.phone, body, member.id);
+  revalidateAll();
+  return { success: true };
 }
 
 export async function getDashboardStats() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const practice = await getDefaultPractice();
 
-  const [memberCount, earnedThisMonth, redeemedThisMonth, referrals, members, messages] =
-    await Promise.all([
-      prisma.member.count(),
-      prisma.discountCredit.count({
-        where: { earnedAt: { gte: monthStart }, status: { in: ["available", "redeemed"] } },
-      }),
-      prisma.discountCredit.count({
-        where: { redeemedAt: { gte: monthStart }, status: "redeemed" },
-      }),
-      prisma.referral.findMany({
-        include: {
-          referrer: true,
-          referred: true,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-      prisma.member.findMany({
-        include: {
-          discountCredits: { where: { status: "available" } },
-          referralsMade: { where: { status: "completed" } },
-          referredBy: true,
-          familyGroup: true,
-          visits: { orderBy: { createdAt: "desc" }, take: 1 },
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.whatsAppMessage.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        include: { member: true },
-      }),
-    ]);
-
-  const allMembersForRanking = await prisma.member.findMany({
-    include: {
-      referralsMade: { where: { status: "completed" } },
-      discountCredits: { where: { status: "available" } },
-    },
-  });
-
-  const topReferrers = allMembersForRanking
-    .sort((a, b) => b.referralsMade.length - a.referralsMade.length)
-    .slice(0, 5);
-
-  const conversionTotal = await prisma.referral.count();
-  const conversionCompleted = await prisma.referral.count({
-    where: { status: "completed" },
-  });
-
-  return {
+  const [
     memberCount,
     earnedThisMonth,
     redeemedThisMonth,
     referrals,
     members,
     messages,
-    topReferrers,
+    reviewsThisMonth,
+    referralRevenueAgg,
+  ] = await Promise.all([
+    prisma.member.count(),
+    prisma.discountCredit.count({
+      where: {
+        earnedAt: { gte: monthStart },
+        status: { in: ["available", "redeemed"] },
+      },
+    }),
+    prisma.discountCredit.count({
+      where: { redeemedAt: { gte: monthStart }, status: "redeemed" },
+    }),
+    prisma.referral.findMany({
+      include: { referrer: true, referred: true },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    prisma.member.findMany({
+      include: {
+        discountCredits: { where: { status: "available" } },
+        referralsMade: { where: { status: "completed" } },
+        referredBy: true,
+        familyGroup: true,
+        visits: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.whatsAppMessage.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: { member: true },
+    }),
+    prisma.reviewRequest.count({
+      where: { createdAt: { gte: monthStart } },
+    }),
+    prisma.visit.aggregate({
+      where: { fromReferral: true, createdAt: { gte: monthStart } },
+      _sum: { treatmentValue: true },
+    }),
+  ]);
+
+  const leaderboard = members
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      memberCode: m.memberCode,
+      completed: m.referralsMade.length,
+      stored: m.discountCredits.length,
+      tier: getTier(m.referralsMade.length),
+    }))
+    .sort((a, b) => b.completed - a.completed);
+
+  const conversionTotal = await prisma.referral.count();
+  const conversionCompleted = await prisma.referral.count({
+    where: { status: "completed" },
+  });
+
+  const referralRevenue = referralRevenueAgg._sum.treatmentValue ?? 0;
+
+  return {
+    practice,
+    memberCount,
+    earnedThisMonth,
+    redeemedThisMonth,
+    referrals,
+    members,
+    messages,
+    leaderboard,
+    topReferrers: leaderboard.slice(0, 5),
+    reviewsThisMonth,
+    referralRevenue,
+    roiMultiple:
+      practice.monthlyFee > 0
+        ? Math.round((referralRevenue / practice.monthlyFee) * 10) / 10
+        : 0,
     conversionRate:
       conversionTotal > 0
         ? Math.round((conversionCompleted / conversionTotal) * 100)
@@ -360,4 +484,8 @@ export async function getMemberByCode(code: string) {
       visits: { orderBy: { createdAt: "desc" }, take: 5 },
     },
   });
+}
+
+export async function getPracticePublic() {
+  return getDefaultPractice();
 }
