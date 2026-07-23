@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { getPracticePublic } from "@/lib/actions";
 import { getAppBaseUrl } from "@/lib/constants";
 import Link from "next/link";
+import { Printer } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,15 @@ export default async function DeskPage() {
 
       <div className="mx-auto mt-8 flex justify-center">
         <QrBlock url={joinUrl} label={`${practice.name} — walk-in join`} size={240} />
+      </div>
+
+      <div className="mt-6">
+        <Link
+          href="/desk/poster"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-600 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:brightness-105"
+        >
+          <Printer className="h-4 w-4" /> Print branded poster
+        </Link>
       </div>
 
       <Card className="mt-8 text-left">
