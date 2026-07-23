@@ -14,6 +14,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Run functions in London (lhr1) to co-locate with the Neon DB (eu-west-2),
+// avoiding transatlantic round-trips on every query.
+export const preferredRegion = "lhr1";
+
 export const metadata: Metadata = {
   title: "Dental Scotland Gold Card — Refer Family, Save on Treatment",
   description:
