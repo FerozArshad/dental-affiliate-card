@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, Trophy } from "lucide-react";
 import { GoldCard } from "@/components/gold-card";
 import { ShareActions } from "@/components/share-actions";
 import { QrBlock } from "@/components/qr-block";
+import { PayOnline } from "@/components/pay-online";
 import { Card } from "@/components/ui/card";
 import { getMemberByCode } from "@/lib/actions";
 import { getAppBaseUrl, getTier } from "@/lib/constants";
@@ -11,17 +12,25 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default async function MemberPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ code: string }>;
+  searchParams?: Promise<{ paid?: string; canceled?: string }>;
 }) {
   const { code } = await params;
+  const sp = (await searchParams) ?? {};
   const member = await getMemberByCode(code);
 
   if (!member) notFound();
 
-  const availableDiscounts = member.discountCredits.filter(
+  const availableCredits = member.discountCredits.filter(
     (d) => d.status === "available"
-  ).length;
+  );
+  const availableDiscounts = availableCredits.length;
+  const storedPercents = availableCredits.map((d) => d.percent);
+  const bestStoredPercent = storedPercents.length
+    ? Math.max(...storedPercents)
+    : 0;
   const completedReferrals = member.referralsMade.filter(
     (r) => r.status === "completed"
   ).length;
@@ -41,6 +50,7 @@ export default async function MemberPage({
               memberSince={member.memberSince}
               practiceName={member.practice.name}
               availableDiscounts={availableDiscounts}
+              storedPercents={storedPercents}
               familyName={member.familyGroup?.name}
               tier={tier.name}
               cashbackPercent={tier.cashbackPercent}
@@ -67,6 +77,39 @@ export default async function MemberPage({
         </div>
 
         <div className="space-y-6">
+          {sp.paid === "1" && (
+            <Card className="border-emerald-400/30 bg-emerald-400/10">
+              <p className="flex items-center gap-2 font-semibold text-emerald-100">
+                <CheckCircle2 className="h-4 w-4" /> Payment successful
+              </p>
+              <p className="mt-1 text-sm text-emerald-100/80">
+                Thanks! Your treatment payment was received.
+              </p>
+            </Card>
+          )}
+          {sp.canceled === "1" && (
+            <Card className="border-white/10 bg-white/5">
+              <p className="text-sm text-stone-400">
+                Payment was cancelled — no charge was made.
+              </p>
+            </Card>
+          )}
+
+          <Card>
+            <h2 className="font-semibold text-white">Pay for treatment</h2>
+            <p className="mt-1 text-sm text-stone-500">
+              {bestStoredPercent > 0
+                ? `Your ${bestStoredPercent}% stored discount is applied automatically.`
+                : "Pay securely online."}
+            </p>
+            <div className="mt-4">
+              <PayOnline
+                memberCode={member.memberCode}
+                bestStoredPercent={bestStoredPercent}
+              />
+            </div>
+          </Card>
+
           {(member.practice.prizeCampaignActive ||
             member.practice.doubleRewardActive) && (
             <Card className="border-amber-400/30 bg-amber-400/10">

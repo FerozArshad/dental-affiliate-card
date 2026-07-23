@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { createTreatmentCheckout } from "@/lib/payments";
 import {
   DISCOUNT_LABEL,
   PRACTICE_NAME,
@@ -624,4 +626,55 @@ export async function getMemberByCode(code: string) {
 
 export async function getPracticePublic() {
   return getDefaultPractice();
+}
+
+/**
+ * Start an online card payment for a treatment.
+ * Auto-applies the member's best available stored family discount to the
+ * amount, then opens Stripe Checkout for the discounted total.
+ */
+export async function startTreatmentPayment(formData: FormData) {
+  const memberCode = String(formData.get("memberCode") ?? "").trim();
+  const amount = Number(formData.get("amount"));
+
+  if (!memberCode || !amount || amount <= 0) {
+    return { error: "Enter a valid treatment amount." };
+  }
+
+  const member = await prisma.member.findUnique({
+    where: { memberCode },
+    include: {
+      practice: true,
+      familyGroup: { include: { members: true } },
+    },
+  });
+  if (!member) return { error: "Member not found." };
+
+  const familyMemberIds = member.familyGroup?.members.map((m) => m.id) ?? [
+    member.id,
+  ];
+  const bestCredit = await prisma.discountCredit.findFirst({
+    where: { memberId: { in: familyMemberIds }, status: "available" },
+    orderBy: { percent: "desc" },
+  });
+
+  const percent = bestCredit?.percent ?? 0;
+  const discounted =
+    Math.round((amount - (amount * percent) / 100) * 100) / 100;
+
+  const description =
+    percent > 0
+      ? `Treatment at ${member.practice.name} (${percent}% Gold Card discount applied)`
+      : `Treatment at ${member.practice.name}`;
+
+  const res = await createTreatmentCheckout({
+    memberCode,
+    description,
+    amountGbp: discounted,
+  });
+
+  if (res.url) {
+    redirect(res.url);
+  }
+  return { error: res.error ?? "Could not start payment." };
 }

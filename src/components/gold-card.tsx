@@ -8,6 +8,7 @@ type GoldCardProps = {
   memberSince: Date | string;
   practiceName: string;
   availableDiscounts: number;
+  storedPercents?: number[];
   familyName?: string | null;
   tier: TierName;
   cashbackPercent: number;
@@ -30,6 +31,7 @@ export function GoldCard({
   memberSince,
   practiceName,
   availableDiscounts,
+  storedPercents = [],
   familyName,
   tier,
   cashbackPercent,
@@ -41,6 +43,9 @@ export function GoldCard({
 }: GoldCardProps) {
   const remaining =
     nextTierAt != null ? Math.max(nextTierAt - completedReferrals, 0) : 0;
+  const bestStoredPercent = storedPercents.length
+    ? Math.max(...storedPercents)
+    : 0;
 
   return (
     <div
@@ -125,9 +130,15 @@ export function GoldCard({
           <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3">
             <p className="text-sm font-medium text-amber-100">
               {availableDiscounts > 0
-                ? `${availableDiscounts}× stored family discount ready`
+                ? `You have ${bestStoredPercent}% stored — ready to use`
                 : `Refer family to earn ${cashbackPercent}% off next treatment`}
             </p>
+            {availableDiscounts > 1 && (
+              <p className="mt-0.5 text-xs text-amber-200/80">
+                {availableDiscounts} stored discounts (
+                {storedPercents.join("%, ")}%) — one applied per treatment
+              </p>
+            )}
             <p className="mt-1 text-xs text-amber-200/70">
               Stored on your card — not cash. Usable by any family member.
               {doubleReward ? " Double reward week is ON." : ""}

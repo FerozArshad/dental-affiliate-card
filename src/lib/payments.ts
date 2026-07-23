@@ -26,29 +26,36 @@ export async function createTreatmentCheckout(
   if (!isStripeConfigured()) {
     return {
       error:
-        "Stripe not configured yet. Add STRIPE_SECRET_KEY to enable card payments.",
+        "Online card payments aren't switched on yet. Add STRIPE_SECRET_KEY to enable them.",
     };
   }
 
-  // Implemented once `stripe` package + keys are available:
-  //
-  //   const Stripe = (await import("stripe")).default;
-  //   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-  //   const session = await stripe.checkout.sessions.create({
-  //     mode: "payment",
-  //     line_items: [{
-  //       price_data: {
-  //         currency: "gbp",
-  //         product_data: { name: input.description },
-  //         unit_amount: Math.round(input.amountGbp * 100),
-  //       },
-  //       quantity: 1,
-  //     }],
-  //     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/member/${input.memberCode}?paid=1`,
-  //     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/member/${input.memberCode}`,
-  //     metadata: { memberCode: input.memberCode },
-  //   });
-  //   return { url: session.url ?? undefined };
+  try {
+    const Stripe = (await import("stripe")).default;
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-  return { error: "Stripe checkout implementation pending keys." };
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "gbp",
+            product_data: { name: input.description },
+            unit_amount: Math.round(input.amountGbp * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${base}/member/${input.memberCode}?paid=1`,
+      cancel_url: `${base}/member/${input.memberCode}?canceled=1`,
+      metadata: { memberCode: input.memberCode },
+    });
+
+    return { url: session.url ?? undefined };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "Could not start payment.",
+    };
+  }
 }
