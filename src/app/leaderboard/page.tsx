@@ -2,6 +2,9 @@ import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { getDashboardStats } from "@/lib/actions";
 import { Card } from "@/components/ui/card";
+import { PRIZE_CAMPAIGN_ENABLED } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
   const stats = await getDashboardStats();
@@ -12,9 +15,9 @@ export default async function LeaderboardPage() {
         <Trophy className="mx-auto h-8 w-8 text-amber-400" />
         <h1 className="mt-3 text-3xl font-bold text-white">Referral leaderboard</h1>
         <p className="mt-2 text-stone-400">
-          {stats.practice.prizeCampaignActive
+          {PRIZE_CAMPAIGN_ENABLED && stats.practice.prizeCampaignActive
             ? `This month's prize: ${stats.practice.prizeLabel}`
-            : "Prize campaign is currently off"}
+            : "Top referrers across the Gold Card programme"}
         </p>
       </div>
 

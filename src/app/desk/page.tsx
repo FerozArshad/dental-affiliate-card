@@ -4,6 +4,8 @@ import { getPracticePublic } from "@/lib/actions";
 import { getAppBaseUrl } from "@/lib/constants";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function DeskPage() {
   const practice = await getPracticePublic();
   const joinUrl = `${getAppBaseUrl()}/join`;

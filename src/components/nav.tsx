@@ -1,15 +1,21 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import Image from "next/image";
+import { BRAND } from "@/lib/constants";
 
 export function Nav() {
   return (
     <header className="border-b border-white/10 bg-stone-950/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-white">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 text-stone-950">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          Gold Card Demo
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <Link href="/" className="flex items-center gap-2">
+          <Image
+            src={BRAND.logo}
+            alt={BRAND.name}
+            width={150}
+            height={60}
+            className="h-9 w-auto"
+            priority
+          />
+          <span className="sr-only">{BRAND.name}</span>
         </Link>
         <nav className="flex flex-wrap items-center justify-end gap-1 text-sm">
           <Link
@@ -31,10 +37,10 @@ export function Nav() {
             Desk QR
           </Link>
           <Link
-            href="/enroll"
-            className="rounded-lg px-3 py-2 text-stone-300 hover:bg-white/5 hover:text-white"
+            href="/join"
+            className="rounded-lg bg-teal-500 px-3 py-2 font-semibold text-stone-950 hover:bg-teal-400"
           >
-            Enroll
+            Join
           </Link>
         </nav>
       </div>

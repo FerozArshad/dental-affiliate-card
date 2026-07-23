@@ -1,5 +1,7 @@
 import { EnrollForm } from "@/components/enroll-form";
 
+export const dynamic = "force-dynamic";
+
 export default function EnrollPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-12">

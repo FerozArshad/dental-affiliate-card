@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gold Card — WhatsApp Loyalty & Referral Demo",
+  title: "Dental Scotland Gold Card — Refer Family, Save on Treatment",
   description:
-    "Demo referral system with stored 5% family treatment discounts instead of cash cashback.",
+    "Dental Scotland Gold Card: refer family & friends for 5% off, and earn stored discounts toward your family's next treatment. It's Time to Smile.",
 };
 
 export default function RootLayout({
@@ -26,12 +27,13 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="en-GB"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-stone-950 text-stone-100">
+      <body className="flex min-h-full flex-col bg-stone-950 text-stone-100">
         <Nav />
-        <main>{children}</main>
+        <main className="flex-1">{children}</main>
+        <Footer />
       </body>
     </html>
   );

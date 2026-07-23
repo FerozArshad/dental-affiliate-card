@@ -167,6 +167,142 @@ export async function enrollViaReferral(formData: FormData) {
   return { success: true, memberCode: member.memberCode };
 }
 
+export type BotRegisterInput = {
+  name: string;
+  email: string;
+  phone: string;
+  referrerCode?: string;
+  relationship?: string;
+};
+
+export async function botRegister(input: BotRegisterInput) {
+  const name = input.name.trim();
+  const email = input.email.trim();
+  const phone = input.phone.trim();
+  const referrerCode = input.referrerCode?.trim();
+  const relationship = (input.relationship ?? "family").trim();
+
+  if (!name || !phone) {
+    return { error: "Name and phone are required" };
+  }
+
+  // Duplicate guard: same phone already a member
+  const existing = await prisma.member.findFirst({ where: { phone } });
+  if (existing) {
+    return {
+      success: true,
+      alreadyMember: true,
+      memberCode: existing.memberCode,
+      name: existing.name,
+    };
+  }
+
+  let referrer = null as Awaited<
+    ReturnType<typeof prisma.member.findUnique>
+  > | null;
+
+  if (referrerCode) {
+    referrer = await prisma.member.findUnique({
+      where: { memberCode: referrerCode },
+    });
+    if (!referrer) {
+      return { error: "Invalid referral link" };
+    }
+  }
+
+  const practice = referrer
+    ? await prisma.practice.findUnique({ where: { id: referrer.practiceId } })
+    : await getDefaultPractice();
+  if (!practice) return { error: "No practice configured" };
+
+  // Family group handling for referrals
+  let familyGroupId: string | undefined;
+  if (referrer && relationship === "family") {
+    if (referrer.familyGroupId) {
+      familyGroupId = referrer.familyGroupId;
+    } else {
+      const group = await prisma.familyGroup.create({
+        data: {
+          name: `${referrer.name.split(" ")[1] ?? referrer.name} Family`,
+        },
+      });
+      await prisma.member.update({
+        where: { id: referrer.id },
+        data: { familyGroupId: group.id },
+      });
+      familyGroupId = group.id;
+    }
+  }
+
+  let memberCode = generateMemberCode(name);
+  while (await prisma.member.findUnique({ where: { memberCode } })) {
+    memberCode = generateMemberCode(name);
+  }
+
+  const member = await prisma.member.create({
+    data: {
+      practiceId: practice.id,
+      familyGroupId,
+      name,
+      phone,
+      email: email || undefined,
+      memberCode,
+    },
+  });
+
+  // Log the inbound "bot" conversation
+  await prisma.whatsAppMessage.create({
+    data: {
+      memberId: member.id,
+      phone,
+      direction: "inbound",
+      body: `[Bot signup] Name: ${name} | Email: ${email || "—"}${
+        referrer ? ` | Referred by: ${referrer.name} (${relationship})` : ""
+      }`,
+    },
+  });
+
+  if (referrer) {
+    await prisma.referral.create({
+      data: {
+        referrerId: referrer.id,
+        referredMemberId: member.id,
+        relationship,
+        status: "pending",
+      },
+    });
+
+    await sendWhatsApp(
+      phone,
+      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nReferred by ${referrer.name} — you get ${REFERRAL_DISCOUNT_PERCENT}% off your first visit.\nYour Gold Card: ${memberCode}\n\nYou can refer others with your own link too.`,
+      member.id
+    );
+
+    await sendWhatsApp(
+      referrer.phone,
+      `${name} just joined via your referral link (${relationship}). When they complete their first visit, you'll earn a stored family discount.`,
+      referrer.id
+    );
+  } else {
+    await sendWhatsApp(
+      phone,
+      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nYour Gold Card: ${memberCode}\nRefer family & friends — they get ${REFERRAL_DISCOUNT_PERCENT}% off, you earn stored % off your family's next treatment (not cash).`,
+      member.id
+    );
+  }
+
+  revalidateAll();
+  if (referrer) revalidatePath(`/member/${referrer.memberCode}`);
+
+  return {
+    success: true,
+    alreadyMember: false,
+    memberCode: member.memberCode,
+    name: member.name,
+    referrerName: referrer?.name ?? null,
+  };
+}
+
 export async function completeVisit(formData: FormData) {
   const memberId = String(formData.get("memberId") ?? "");
   const treatmentValue = Number(formData.get("treatmentValue"));

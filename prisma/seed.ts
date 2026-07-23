@@ -11,33 +11,49 @@ async function main() {
   await prisma.familyGroup.deleteMany();
   await prisma.practice.deleteMany();
 
-  const practice = await prisma.practice.create({
+  // ---- Pilot clinic 1: Glasgow, Bridge St ----
+  const glasgow = await prisma.practice.create({
     data: {
-      name: "Storm Dental Studio",
-      slug: "storm-dental",
-      phone: "+44 20 7946 0958",
-      monthlyFee: 199,
-      prizeCampaignActive: true,
+      name: "Dental Scotland Glasgow, Bridge St",
+      slug: "glasgow-bridge-st",
+      phone: "0141 255 1115",
+      monthlyFee: 0,
+      prizeCampaignActive: false,
       prizeLabel: "Free hygiene clean",
       doubleRewardActive: false,
-      googleReviewUrl: "https://g.page/r/demo-review",
+      googleReviewUrl: "https://g.page/r/dental-scotland-bridge-st/review",
     },
   });
 
+  // ---- Pilot clinic 2: Falkirk ----
+  const falkirk = await prisma.practice.create({
+    data: {
+      name: "Dental Scotland Falkirk",
+      slug: "falkirk",
+      phone: "01324 622338",
+      monthlyFee: 0,
+      prizeCampaignActive: false,
+      prizeLabel: "Free hygiene clean",
+      doubleRewardActive: false,
+      googleReviewUrl: "https://g.page/r/dental-scotland-falkirk/review",
+    },
+  });
+
+  // ===== Glasgow members =====
   const smithFamily = await prisma.familyGroup.create({
     data: { name: "Smith Family" },
   });
-
   const jonesFamily = await prisma.familyGroup.create({
     data: { name: "Jones Family" },
   });
 
   const sarah = await prisma.member.create({
     data: {
-      practiceId: practice.id,
+      practiceId: glasgow.id,
       familyGroupId: smithFamily.id,
       name: "Sarah Smith",
       phone: "+44 7700 900123",
+      email: "sarah.smith@example.com",
       memberCode: "GOLD-SMITH1",
       memberSince: new Date("2025-11-15"),
     },
@@ -45,10 +61,11 @@ async function main() {
 
   const tom = await prisma.member.create({
     data: {
-      practiceId: practice.id,
+      practiceId: glasgow.id,
       familyGroupId: smithFamily.id,
       name: "Tom Smith",
       phone: "+44 7700 900124",
+      email: "tom.smith@example.com",
       memberCode: "GOLD-SMITH2",
       memberSince: new Date("2025-12-01"),
     },
@@ -56,10 +73,11 @@ async function main() {
 
   const emma = await prisma.member.create({
     data: {
-      practiceId: practice.id,
+      practiceId: glasgow.id,
       familyGroupId: jonesFamily.id,
       name: "Emma Jones",
       phone: "+44 7700 900456",
+      email: "emma.jones@example.com",
       memberCode: "GOLD-JONES1",
       memberSince: new Date("2026-01-10"),
     },
@@ -67,10 +85,11 @@ async function main() {
 
   const lucy = await prisma.member.create({
     data: {
-      practiceId: practice.id,
+      practiceId: glasgow.id,
       familyGroupId: jonesFamily.id,
       name: "Lucy Jones",
       phone: "+44 7700 900457",
+      email: "lucy.jones@example.com",
       memberCode: "GOLD-JONES2",
       memberSince: new Date("2026-02-20"),
     },
@@ -78,25 +97,46 @@ async function main() {
 
   const mark = await prisma.member.create({
     data: {
-      practiceId: practice.id,
-      name: "Mark Patel",
+      practiceId: glasgow.id,
+      name: "Mark Wilson",
       phone: "+44 7700 900789",
-      memberCode: "GOLD-PATEL1",
+      email: "mark.wilson@example.com",
+      memberCode: "GOLD-WILS01",
       memberSince: new Date("2026-03-01"),
     },
   });
 
+  // ===== Falkirk members =====
+  const patelFamily = await prisma.familyGroup.create({
+    data: { name: "Patel Family" },
+  });
+
   const nina = await prisma.member.create({
     data: {
-      practiceId: practice.id,
+      practiceId: falkirk.id,
+      familyGroupId: patelFamily.id,
       name: "Nina Patel",
       phone: "+44 7700 900790",
-      memberCode: "GOLD-PATEL2",
-      memberSince: new Date("2026-03-15"),
+      email: "nina.patel@example.com",
+      memberCode: "GOLD-PATEL1",
+      memberSince: new Date("2026-03-05"),
     },
   });
 
-  const referral1 = await prisma.referral.create({
+  const ben = await prisma.member.create({
+    data: {
+      practiceId: falkirk.id,
+      familyGroupId: patelFamily.id,
+      name: "Ben Patel",
+      phone: "+44 7700 900791",
+      email: "ben.patel@example.com",
+      memberCode: "GOLD-PATEL2",
+      memberSince: new Date("2026-03-18"),
+    },
+  });
+
+  // ===== Referrals (Glasgow) =====
+  const refLucy = await prisma.referral.create({
     data: {
       referrerId: emma.id,
       referredMemberId: lucy.id,
@@ -106,25 +146,27 @@ async function main() {
     },
   });
 
-  const referral2 = await prisma.referral.create({
+  const refMark = await prisma.referral.create({
     data: {
       referrerId: emma.id,
       referredMemberId: mark.id,
       relationship: "friend",
       status: "completed",
-      completedAt: new Date("2026-03-20"),
+      completedAt: new Date("2026-03-04"),
     },
   });
 
+  // ===== Referrals (Falkirk) =====
   await prisma.referral.create({
     data: {
-      referrerId: mark.id,
-      referredMemberId: nina.id,
+      referrerId: nina.id,
+      referredMemberId: ben.id,
       relationship: "family",
       status: "pending",
     },
   });
 
+  // ===== Visits =====
   await prisma.visit.create({
     data: {
       memberId: lucy.id,
@@ -133,7 +175,7 @@ async function main() {
       discountAmount: 9,
       finalAmount: 171,
       fromReferral: true,
-      notes: "Hygiene visit — friend referral discount applied",
+      notes: "Hygiene visit — referral welcome discount",
     },
   });
 
@@ -145,14 +187,15 @@ async function main() {
       discountAmount: 21,
       finalAmount: 399,
       fromReferral: true,
-      notes: "Whitening — referred by Emma",
+      notes: "Composite bonding — referred by Emma",
     },
   });
 
+  // ===== Stored discounts for Emma (Gold tier) =====
   await prisma.discountCredit.create({
     data: {
       memberId: emma.id,
-      referralId: referral1.id,
+      referralId: refLucy.id,
       percent: 5,
       label: "5% off next family treatment",
       status: "available",
@@ -163,40 +206,42 @@ async function main() {
   await prisma.discountCredit.create({
     data: {
       memberId: emma.id,
-      referralId: referral2.id,
+      referralId: refMark.id,
       percent: 7,
       label: "7% off next family treatment",
       status: "available",
-      earnedAt: new Date("2026-03-20"),
+      earnedAt: new Date("2026-03-04"),
     },
   });
 
+  // ===== Sample WhatsApp log =====
   await prisma.whatsAppMessage.createMany({
     data: [
       {
         memberId: sarah.id,
         phone: sarah.phone,
-        body: "Welcome to Storm Dental Gold Card! Your member code is GOLD-SMITH1. Refer family & friends — they get 5% off, you earn stored % off next family treatment.",
+        body: "Welcome to the Dental Scotland Gold Card! Your code is GOLD-SMITH1. Refer family & friends — they get 5% off, you earn stored % off your family's next treatment (credit, not cash).",
       },
       {
         memberId: emma.id,
         phone: emma.phone,
-        body: "Great news Emma! You've reached Gold tier (2 referrals). Climb the leaderboard this month for a free hygiene clean.",
+        body: "Great news Emma! You've reached Gold tier with 2 successful referrals. You now earn 7% off your family's next treatment.",
       },
       {
-        memberId: lucy.id,
-        phone: lucy.phone,
-        body: "Thanks for visiting! Your 5% referral welcome discount was applied. Final amount: £171.00",
+        memberId: nina.id,
+        phone: nina.phone,
+        body: "Welcome to Dental Scotland Falkirk, Nina! Share your Gold Card link with family for 5% off their treatment.",
       },
     ],
   });
 
   console.log("Seed complete:");
-  console.log(`  Practice: ${practice.name}`);
+  console.log(`  Clinics: ${glasgow.name} | ${falkirk.name}`);
   console.log(
-    `  Members: ${[sarah, tom, emma, lucy, mark, nina].map((m) => m.memberCode).join(", ")}`
+    "  Glasgow: GOLD-SMITH1, GOLD-SMITH2, GOLD-JONES1, GOLD-JONES2, GOLD-WILS01"
   );
-  console.log("  Emma is Gold tier (2 completed referrals) — top of leaderboard");
+  console.log("  Falkirk: GOLD-PATEL1, GOLD-PATEL2");
+  console.log("  Emma Jones = Gold tier (2 referrals), 2 stored discounts");
 }
 
 main()

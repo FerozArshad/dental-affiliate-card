@@ -2,7 +2,20 @@ export const REFERRAL_DISCOUNT_PERCENT = 5;
 
 export const DISCOUNT_LABEL = "5% off next family treatment";
 
-export const PRACTICE_NAME = "Storm Dental Studio";
+export const PRACTICE_NAME = "Dental Scotland";
+
+export const BRAND = {
+  name: "Dental Scotland",
+  tagline: "It's Time to Smile",
+  logo: "/brand/dental-scotland-logo.png",
+  website: "https://dentalscotland.com",
+  supportEmail: "hello@dentalscotland.com",
+  company: "Dental Scotland",
+  established: 2005,
+};
+
+// Prize campaign is disabled for launch (kept in schema for later use).
+export const PRIZE_CAMPAIGN_ENABLED = false;
 
 export type TierName = "Silver" | "Gold" | "Platinum";
 

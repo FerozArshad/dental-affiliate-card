@@ -1,10 +1,39 @@
-# Dental Affiliate Card
+# Dental Scotland Gold Card
 
-WhatsApp loyalty + referral demo for Storm Marketing Studio.
+WhatsApp loyalty + referral system for **Dental Scotland** — *It's Time to Smile*.
 
 **Repository:** [github.com/FerozArshad/dental-affiliate-card](https://github.com/FerozArshad/dental-affiliate-card)
 
-**Key model:** No cash cashback. Referrers earn **5% off next family treatment**, stored on their Gold Card and redeemed at the front desk.
+**Key model:** No cash cashback. Referrers earn a **stored discount off their family's next treatment** (5% Silver, 7% Gold, 10% Platinum), redeemed at the front desk as credit toward treatment.
+
+## Production stack
+
+- Next.js 16 + React 19 + Tailwind CSS 4
+- Prisma + **PostgreSQL** (Vercel Postgres / Neon)
+- Deployed on **Vercel**
+
+## Deployment (Vercel)
+
+1. Set environment variables (see `.env.example`):
+   - `DATABASE_URL` and `DIRECT_DATABASE_URL` (Vercel Postgres/Neon)
+   - `NEXT_PUBLIC_APP_URL` = your live URL (used for QR + referral links)
+   - WhatsApp + Stripe keys when ready
+2. First-time schema + seed (run locally after `vercel env pull`):
+   ```bash
+   npm run db:push
+   npm run db:seed
+   ```
+3. Deploy: push to `main` (Vercel auto-build runs `prisma generate && next build`).
+
+> Note: DB-backed pages use `force-dynamic`, so the build does **not** require a
+> database connection — this is what fixes the earlier Vercel build failure.
+
+## Legal / UK compliance
+
+- `/privacy` — UK GDPR privacy policy
+- `/terms` — programme terms (GDC/ASA-aware wording, "credit toward treatment")
+- `/cookies` — cookie policy
+- Explicit opt-in + STOP opt-out in the WhatsApp signup bot
 
 ## Quick start
 

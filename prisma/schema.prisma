@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model Practice {
@@ -34,6 +35,7 @@ model Member {
   familyGroupId   String?
   name            String
   phone           String
+  email           String?
   memberCode      String            @unique
   memberSince     DateTime          @default(now())
   optedIn         Boolean           @default(true)

@@ -7,6 +7,7 @@ import {
   togglePrizeCampaign,
 } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
+import { PRIZE_CAMPAIGN_ENABLED } from "@/lib/constants";
 
 export function CampaignToggles({
   prizeActive,
@@ -21,24 +22,28 @@ export function CampaignToggles({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-        <div>
-          <p className="text-sm font-medium text-white">Monthly prize campaign</p>
-          <p className="text-xs text-stone-500">Prize: {prizeLabel}</p>
+      {PRIZE_CAMPAIGN_ENABLED && (
+        <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-white">
+              Monthly prize campaign
+            </p>
+            <p className="text-xs text-stone-500">Prize: {prizeLabel}</p>
+          </div>
+          <Button
+            type="button"
+            variant={prizeActive ? "gold" : "secondary"}
+            disabled={pending}
+            onClick={() =>
+              start(() => {
+                void togglePrizeCampaign();
+              })
+            }
+          >
+            {prizeActive ? "ON" : "OFF"}
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant={prizeActive ? "gold" : "secondary"}
-          disabled={pending}
-          onClick={() =>
-            start(() => {
-              void togglePrizeCampaign();
-            })
-          }
-        >
-          {prizeActive ? "ON" : "OFF"}
-        </Button>
-      </div>
+      )}
       <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
         <div>
           <p className="text-sm font-medium text-white">Double reward week</p>

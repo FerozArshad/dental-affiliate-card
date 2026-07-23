@@ -7,6 +7,8 @@ import { getTier } from "@/lib/constants";
 import Link from "next/link";
 import { MessageCircle, QrCode, Trophy, UserPlus } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const stats = await getDashboardStats();
 

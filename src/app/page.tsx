@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const members = await prisma.member.findMany({
     orderBy: { createdAt: "asc" },
@@ -19,28 +21,29 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-12">
       <section className="text-center">
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-amber-400">
-          Storm Marketing Studio Demo
+        <p className="text-sm font-medium uppercase tracking-[0.2em] text-teal-400">
+          Dental Scotland · It&apos;s Time to Smile
         </p>
         <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-bold tracking-tight text-white md:text-5xl">
-          WhatsApp Gold Card with stored family discounts
+          The Dental Scotland Gold Card
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-stone-400">
-          Refer family & friends — they get 5% off their visit. You earn 5% off
-          your family&apos;s <strong className="text-amber-200">next treatment</strong>,
-          stored on the card. No cash payouts.
+          Refer family &amp; friends — they get 5% off their treatment. You earn
+          5% off your family&apos;s{" "}
+          <strong className="text-amber-200">next treatment</strong>, stored on
+          your card as credit. No cash payouts.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/dashboard">
+          <Link href="/join">
             <Button variant="gold" className="gap-2">
-              Open practice dashboard <ArrowRight className="h-4 w-4" />
+              Join the Gold Card <ArrowRight className="h-4 w-4" />
             </Button>
+          </Link>
+          <Link href="/dashboard">
+            <Button variant="secondary">Practice dashboard</Button>
           </Link>
           <Link href="/desk">
             <Button variant="secondary">Desk QR</Button>
-          </Link>
-          <Link href="/leaderboard">
-            <Button variant="secondary">Leaderboard</Button>
           </Link>
         </div>
       </section>
@@ -77,9 +80,9 @@ export default async function HomePage() {
       </section>
 
       <section className="mt-16">
-        <h2 className="text-xl font-semibold text-white">Demo member cards</h2>
+        <h2 className="text-xl font-semibold text-white">Member cards</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Pre-seeded data — click to view a patient&apos;s Gold Card
+          Click to view a patient&apos;s Gold Card
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {members.map((m) => (
