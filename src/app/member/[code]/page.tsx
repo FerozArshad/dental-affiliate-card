@@ -74,6 +74,15 @@ export default async function MemberPage({
           <div className="mt-4">
             <QrBlock url={referUrl} label="Scan to join via this member" />
           </div>
+
+          <div className="mt-3 text-center">
+            <Link
+              href={`/desk/poster?code=${member.memberCode}`}
+              className="text-sm text-amber-300 hover:underline"
+            >
+              Print a branded referral poster →
+            </Link>
+          </div>
         </div>
 
         <div className="space-y-6">

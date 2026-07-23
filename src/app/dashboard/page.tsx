@@ -72,8 +72,12 @@ export default async function DashboardPage() {
         />
         <StatCard
           label="ROI vs fee"
-          value={`${stats.roiMultiple}×`}
-          hint={`${formatCurrency(stats.practice.monthlyFee)}/mo fee`}
+          value={stats.practice.monthlyFee > 0 ? `${stats.roiMultiple}×` : "—"}
+          hint={
+            stats.practice.monthlyFee > 0
+              ? `${formatCurrency(stats.practice.monthlyFee)}/mo fee`
+              : "No monthly fee"
+          }
         />
         <StatCard
           label="Reviews sent (month)"
@@ -83,11 +87,15 @@ export default async function DashboardPage() {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <StatCard
-          label="Discounts earned"
-          value={stats.earnedThisMonth}
-          hint="Stored for next family treatment"
+          label="Stored discounts (available)"
+          value={stats.storedOutstanding}
+          hint="Ready to redeem — not cash"
         />
-        <StatCard label="Discounts redeemed" value={stats.redeemedThisMonth} />
+        <StatCard
+          label="Discounts redeemed"
+          value={stats.redeemedTotal}
+          hint="All-time"
+        />
         <StatCard label="Referral conversion" value={`${stats.conversionRate}%`} />
       </div>
 

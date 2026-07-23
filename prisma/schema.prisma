@@ -94,6 +94,8 @@ model Visit {
   finalAmount       Float
   notes             String?
   fromReferral      Boolean         @default(false)
+  paidOnline        Boolean         @default(false)
+  stripeSessionId   String?         @unique
   createdAt         DateTime        @default(now())
   member            Member          @relation(fields: [memberId], references: [id])
   redeemedCredit    DiscountCredit?

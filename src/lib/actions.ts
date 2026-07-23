@@ -582,6 +582,15 @@ export async function getDashboardStats() {
     where: { status: "completed" },
   });
 
+  // All-time counts so the dashboard reflects outstanding value, not just
+  // what happened in the current calendar month.
+  const storedOutstanding = await prisma.discountCredit.count({
+    where: { status: "available" },
+  });
+  const redeemedTotal = await prisma.discountCredit.count({
+    where: { status: "redeemed" },
+  });
+
   const referralRevenue = referralRevenueAgg._sum.treatmentValue ?? 0;
 
   return {
@@ -589,6 +598,8 @@ export async function getDashboardStats() {
     memberCount,
     earnedThisMonth,
     redeemedThisMonth,
+    storedOutstanding,
+    redeemedTotal,
     referrals,
     members,
     messages,
@@ -659,8 +670,8 @@ export async function startTreatmentPayment(formData: FormData) {
   });
 
   const percent = bestCredit?.percent ?? 0;
-  const discounted =
-    Math.round((amount - (amount * percent) / 100) * 100) / 100;
+  const discountAmount = Math.round(((amount * percent) / 100) * 100) / 100;
+  const discounted = Math.round((amount - discountAmount) * 100) / 100;
 
   const description =
     percent > 0
@@ -671,6 +682,14 @@ export async function startTreatmentPayment(formData: FormData) {
     memberCode,
     description,
     amountGbp: discounted,
+    metadata: {
+      memberId: member.id,
+      treatmentValue: String(amount),
+      storedDiscountPct: String(percent),
+      discountAmount: String(discountAmount),
+      finalAmount: String(discounted),
+      creditId: bestCredit?.id ?? "",
+    },
   });
 
   if (res.url) {

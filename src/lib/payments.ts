@@ -18,6 +18,9 @@ export type TreatmentPaymentInput = {
   memberCode: string;
   description: string;
   amountGbp: number; // final amount after stored discount
+  // Extra context recorded on the Stripe session so the webhook can
+  // create the visit + redeem the discount automatically on payment.
+  metadata?: Record<string, string>;
 };
 
 export async function createTreatmentCheckout(
@@ -49,7 +52,7 @@ export async function createTreatmentCheckout(
       ],
       success_url: `${base}/member/${input.memberCode}?paid=1`,
       cancel_url: `${base}/member/${input.memberCode}?canceled=1`,
-      metadata: { memberCode: input.memberCode },
+      metadata: { memberCode: input.memberCode, ...(input.metadata ?? {}) },
     });
 
     return { url: session.url ?? undefined };
