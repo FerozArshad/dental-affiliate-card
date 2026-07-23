@@ -30,7 +30,10 @@ export default function RootLayout({
       lang="en-GB"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-stone-950 text-stone-100">
+      <body
+        suppressHydrationWarning
+        className="flex min-h-full flex-col bg-stone-950 text-stone-100"
+      >
         <Nav />
         <main className="flex-1">{children}</main>
         <Footer />
