@@ -2,6 +2,31 @@ export const REFERRAL_DISCOUNT_PERCENT = 5;
 
 export const DISCOUNT_LABEL = "5% off next family treatment";
 
+// A member can stack multiple stored referral discounts into one treatment,
+// capped so a single visit can never exceed this combined percentage.
+export const MAX_STACKED_DISCOUNT_PERCENT = 20;
+
+/**
+ * Given available discount credits (each with a `percent` and `id`), greedily
+ * stack the highest-value ones until the combined cap is reached.
+ * Returns the applied percentage and the ids of the credits consumed, so the
+ * caller can mark exactly those as redeemed (no credit is wasted past the cap).
+ */
+export function stackDiscounts<T extends { id: string; percent: number }>(
+  credits: T[],
+  cap: number = MAX_STACKED_DISCOUNT_PERCENT
+): { percent: number; creditIds: string[] } {
+  const sorted = [...credits].sort((a, b) => b.percent - a.percent);
+  let total = 0;
+  const creditIds: string[] = [];
+  for (const c of sorted) {
+    if (total >= cap) break;
+    total += c.percent;
+    creditIds.push(c.id);
+  }
+  return { percent: Math.min(total, cap), creditIds };
+}
+
 export const PRACTICE_NAME = "Dental Scotland";
 
 export const BRAND = {

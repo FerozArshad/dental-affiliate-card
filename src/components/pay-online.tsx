@@ -6,10 +6,10 @@ import { startTreatmentPayment } from "@/lib/actions";
 
 export function PayOnline({
   memberCode,
-  bestStoredPercent,
+  stackedPercent,
 }: {
   memberCode: string;
-  bestStoredPercent: number;
+  stackedPercent: number;
 }) {
   const [amount, setAmount] = useState("");
   const [pending, setPending] = useState(false);
@@ -17,7 +17,7 @@ export function PayOnline({
 
   const value = Number(amount) || 0;
   const discount =
-    bestStoredPercent > 0 ? (value * bestStoredPercent) / 100 : 0;
+    stackedPercent > 0 ? (value * stackedPercent) / 100 : 0;
   const payable = Math.max(value - discount, 0);
 
   async function onSubmit(formData: FormData) {
@@ -54,9 +54,9 @@ export function PayOnline({
             <span>Treatment</span>
             <span>£{value.toFixed(2)}</span>
           </div>
-          {bestStoredPercent > 0 && (
+          {stackedPercent > 0 && (
             <div className="flex justify-between text-amber-300">
-              <span>Gold Card discount ({bestStoredPercent}%)</span>
+              <span>Gold Card discount ({stackedPercent}%)</span>
               <span>−£{discount.toFixed(2)}</span>
             </div>
           )}

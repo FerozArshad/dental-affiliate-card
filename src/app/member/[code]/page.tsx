@@ -7,7 +7,7 @@ import { QrBlock } from "@/components/qr-block";
 import { PayOnline } from "@/components/pay-online";
 import { Card } from "@/components/ui/card";
 import { getMemberByCode } from "@/lib/actions";
-import { getAppBaseUrl, getTier } from "@/lib/constants";
+import { getAppBaseUrl, getTier, stackDiscounts } from "@/lib/constants";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default async function MemberPage({
@@ -28,9 +28,8 @@ export default async function MemberPage({
   );
   const availableDiscounts = availableCredits.length;
   const storedPercents = availableCredits.map((d) => d.percent);
-  const bestStoredPercent = storedPercents.length
-    ? Math.max(...storedPercents)
-    : 0;
+  // Combined discount that will actually be applied at checkout (stacked + capped).
+  const { percent: stackedPercent } = stackDiscounts(availableCredits);
   const completedReferrals = member.referralsMade.filter(
     (r) => r.status === "completed"
   ).length;
@@ -51,6 +50,7 @@ export default async function MemberPage({
               practiceName={member.practice.name}
               availableDiscounts={availableDiscounts}
               storedPercents={storedPercents}
+              stackedPercent={stackedPercent}
               familyName={member.familyGroup?.name}
               tier={tier.name}
               cashbackPercent={tier.cashbackPercent}
@@ -107,14 +107,16 @@ export default async function MemberPage({
           <Card>
             <h2 className="font-semibold text-white">Pay for treatment</h2>
             <p className="mt-1 text-sm text-stone-500">
-              {bestStoredPercent > 0
-                ? `Your ${bestStoredPercent}% stored discount is applied automatically.`
+              {stackedPercent > 0
+                ? `Your ${stackedPercent}% stored discount${
+                    availableDiscounts > 1 ? " (combined)" : ""
+                  } is applied automatically.`
                 : "Pay securely online."}
             </p>
             <div className="mt-4">
               <PayOnline
                 memberCode={member.memberCode}
-                bestStoredPercent={bestStoredPercent}
+                stackedPercent={stackedPercent}
               />
             </div>
           </Card>

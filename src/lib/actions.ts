@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createTreatmentCheckout } from "@/lib/payments";
 import {
-  DISCOUNT_LABEL,
   PRACTICE_NAME,
   REFERRAL_DISCOUNT_PERCENT,
   getTier,
+  stackDiscounts,
 } from "@/lib/constants";
 import { generateMemberCode } from "@/lib/utils";
 
@@ -76,7 +76,7 @@ export async function enrollMember(formData: FormData) {
 
   await sendWhatsApp(
     phone,
-    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\nTier: Silver (5% stored rewards)\n\nRefer family & friends — they get ${REFERRAL_DISCOUNT_PERCENT}% off. You earn stored % off your family's next treatment (not cash).`,
+    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\nTier: Silver — you earn 5% stored rewards now, rising to 7% (Gold) and 10% (Platinum) as you refer more.\n\nRefer family & friends — they get ${REFERRAL_DISCOUNT_PERCENT}% off their first visit. You earn stored % off your family's next treatment (not cash), and multiple discounts combine at checkout.`,
     member.id
   );
 
@@ -288,7 +288,7 @@ export async function botRegister(input: BotRegisterInput) {
   } else {
     await sendWhatsApp(
       phone,
-      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nYour Gold Card: ${memberCode}\nRefer family & friends — they get ${REFERRAL_DISCOUNT_PERCENT}% off, you earn stored % off your family's next treatment (not cash).`,
+      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nYour Gold Card: ${memberCode}\nRefer family & friends — they get ${REFERRAL_DISCOUNT_PERCENT}% off their first visit. You earn 5% stored rewards now, rising to 10% as you refer more — and your stored discounts combine at checkout.`,
       member.id
     );
   }
@@ -330,7 +330,7 @@ export async function completeVisit(formData: FormData) {
   let friendDiscountPct = 0;
   let storedDiscountPct = 0;
   let discountAmount = 0;
-  let redeemedCreditId: string | undefined;
+  let redeemedCreditIds: string[] = [];
   const fromReferral = member.referredBy?.status === "pending";
 
   if (fromReferral) {
@@ -342,18 +342,20 @@ export async function completeVisit(formData: FormData) {
     const familyMemberIds = member.familyGroup?.members.map((m) => m.id) ?? [
       member.id,
     ];
-    const credit = await prisma.discountCredit.findFirst({
+    const availableCredits = await prisma.discountCredit.findMany({
       where: {
         memberId: { in: familyMemberIds },
         status: "available",
       },
-      orderBy: { earnedAt: "asc" },
+      orderBy: { percent: "desc" },
     });
 
-    if (credit) {
-      storedDiscountPct = credit.percent;
+    // Stack the family's stored discounts into one combined discount (capped).
+    const stacked = stackDiscounts(availableCredits);
+    if (stacked.creditIds.length) {
+      storedDiscountPct = stacked.percent;
       discountAmount += (treatmentValue * storedDiscountPct) / 100;
-      redeemedCreditId = credit.id;
+      redeemedCreditIds = stacked.creditIds;
     }
   }
 
@@ -372,9 +374,9 @@ export async function completeVisit(formData: FormData) {
     },
   });
 
-  if (redeemedCreditId) {
-    await prisma.discountCredit.update({
-      where: { id: redeemedCreditId },
+  if (redeemedCreditIds.length) {
+    await prisma.discountCredit.updateMany({
+      where: { id: { in: redeemedCreditIds }, status: "available" },
       data: {
         status: "redeemed",
         redeemedAt: new Date(),
@@ -383,9 +385,13 @@ export async function completeVisit(formData: FormData) {
       },
     });
 
+    const stackNote =
+      redeemedCreditIds.length > 1
+        ? ` (${redeemedCreditIds.length} stored discounts combined)`
+        : "";
     await sendWhatsApp(
       member.phone,
-      `Your stored ${storedDiscountPct}% family discount was applied. Treatment: ${formatGbp(treatmentValue)} → You pay: ${formatGbp(finalAmount)}`,
+      `Your stored ${storedDiscountPct}% family discount was applied${stackNote}. Treatment: ${formatGbp(treatmentValue)} → You pay: ${formatGbp(finalAmount)}`,
       member.id
     );
   }
@@ -434,7 +440,7 @@ export async function completeVisit(formData: FormData) {
       }`,
       referral.referrerId
     );
-  } else if (!redeemedCreditId) {
+  } else if (!redeemedCreditIds.length) {
     await sendWhatsApp(
       member.phone,
       `Visit recorded. Treatment: ${formatGbp(treatmentValue)}. Amount due: ${formatGbp(finalAmount)}`,
@@ -664,12 +670,13 @@ export async function startTreatmentPayment(formData: FormData) {
   const familyMemberIds = member.familyGroup?.members.map((m) => m.id) ?? [
     member.id,
   ];
-  const bestCredit = await prisma.discountCredit.findFirst({
+  const availableCredits = await prisma.discountCredit.findMany({
     where: { memberId: { in: familyMemberIds }, status: "available" },
     orderBy: { percent: "desc" },
   });
 
-  const percent = bestCredit?.percent ?? 0;
+  // Stack the member's stored discounts into one combined discount (capped).
+  const { percent, creditIds } = stackDiscounts(availableCredits);
   const discountAmount = Math.round(((amount * percent) / 100) * 100) / 100;
   const discounted = Math.round((amount - discountAmount) * 100) / 100;
 
@@ -688,7 +695,8 @@ export async function startTreatmentPayment(formData: FormData) {
       storedDiscountPct: String(percent),
       discountAmount: String(discountAmount),
       finalAmount: String(discounted),
-      creditId: bestCredit?.id ?? "",
+      // Comma-separated list of the credits consumed by this payment.
+      creditIds: creditIds.join(","),
     },
   });
 

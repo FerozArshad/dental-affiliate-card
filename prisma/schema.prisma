@@ -76,7 +76,7 @@ model DiscountCredit {
   earnedAt            DateTime  @default(now())
   redeemedAt          DateTime?
   redeemedForMemberId String?
-  visitId             String?   @unique
+  visitId             String?
   member              Member    @relation(fields: [memberId], references: [id])
   referral            Referral? @relation(fields: [referralId], references: [id])
   visit               Visit?    @relation(fields: [visitId], references: [id])
@@ -98,7 +98,7 @@ model Visit {
   stripeSessionId   String?         @unique
   createdAt         DateTime        @default(now())
   member            Member          @relation(fields: [memberId], references: [id])
-  redeemedCredit    DiscountCredit?
+  redeemedCredits   DiscountCredit[]
   reviewRequest     ReviewRequest?
 
   @@index([memberId])

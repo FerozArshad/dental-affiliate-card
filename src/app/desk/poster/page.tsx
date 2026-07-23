@@ -44,8 +44,12 @@ export default async function PosterPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
-      {/* Force the print page size to match the chosen poster size */}
-      <style>{`@media print { @page { size: ${PAGE_SIZE[size]}; margin: 10mm; } }`}</style>
+      {/* Standalone poster view: hide the site header/footer so it's a single
+          clean poster on screen and in print. Force the print page size too. */}
+      <style>{`
+        body > header, body > footer { display: none !important; }
+        @media print { @page { size: ${PAGE_SIZE[size]}; margin: 10mm; } }
+      `}</style>
 
       <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link

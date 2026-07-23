@@ -59,7 +59,12 @@ async function handleCompletedCheckout(session: Stripe.Checkout.Session) {
   const finalAmount =
     Number(meta.finalAmount) ||
     (session.amount_total != null ? session.amount_total / 100 : 0);
-  const creditId = meta.creditId || undefined;
+  // Newer sessions carry a comma-separated `creditIds`; fall back to the older
+  // single `creditId` for any in-flight sessions created before the change.
+  const creditIds = (meta.creditIds || meta.creditId || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const visit = await prisma.visit.create({
     data: {
@@ -74,11 +79,11 @@ async function handleCompletedCheckout(session: Stripe.Checkout.Session) {
     },
   });
 
-  // Redeem the stored discount that was applied — only if still available
+  // Redeem the stored discounts that were applied — only those still available
   // (updateMany makes this safely idempotent).
-  if (creditId) {
+  if (creditIds.length) {
     await prisma.discountCredit.updateMany({
-      where: { id: creditId, status: "available" },
+      where: { id: { in: creditIds }, status: "available" },
       data: {
         status: "redeemed",
         redeemedAt: new Date(),
@@ -97,7 +102,11 @@ async function handleCompletedCheckout(session: Stripe.Checkout.Session) {
         body:
           `Payment received: £${finalAmount.toFixed(2)}` +
           (storedDiscountPct > 0
-            ? ` — your ${storedDiscountPct}% Gold Card discount was applied.`
+            ? ` — your ${storedDiscountPct}% Gold Card discount${
+                creditIds.length > 1
+                  ? ` (${creditIds.length} stored discounts combined)`
+                  : ""
+              } was applied.`
             : ".") +
           " Thank you!",
       },
