@@ -123,8 +123,8 @@ export function BotChat({
         pushBot(
           `You're registered! ✅\n\nYour Gold Card code: ${res.memberCode}\n${
             referrerName
-              ? `You've got ${discountPercent}% stored (referred by ${referrerName}). They earned ${discountPercent}% too!`
-              : `You've got ${discountPercent}% stored on your card. Share your link — friends get ${discountPercent}%, and you get ${discountPercent}% when they join.`
+              ? `Complete a qualifying treatment for ${discountPercent}% off (referred by ${referrerName}). Share REF-${res.memberCode} — you earn ${discountPercent}% after friends complete treatment.`
+              : `No discount for signup alone. Share REF-${res.memberCode} — friends get ${discountPercent}% on first paid treatment; you earn ${discountPercent}% after they complete it.`
           }`
         );
         pushBot("Tap below to open your Gold Card and start sharing.");

@@ -3,7 +3,8 @@ import { ArrowLeft, Download } from "lucide-react";
 import { QrPoster, type PosterSize } from "@/components/qr-poster";
 import { PrintButton } from "@/components/print-button";
 import { getMemberByCode, getPracticePublic } from "@/lib/actions";
-import { getAppBaseUrl, REFERRAL_DISCOUNT_PERCENT } from "@/lib/constants";
+import { REFERRAL_DISCOUNT_PERCENT } from "@/lib/constants";
+import { joinDeepLink } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +24,11 @@ export default async function PosterPage({
     sp.size === "a5" ? "a5" : sp.size === "tent" ? "tent" : "a4";
 
   const practice = await getPracticePublic();
-  const base = getAppBaseUrl();
 
-  // Referral mode: encode a specific member's referral link.
+  // Referral mode: WhatsApp deep link when configured, else web refer/join.
   const member = sp.code ? await getMemberByCode(sp.code) : null;
   const mode = member ? "refer" : "join";
-  const qrUrl = member ? `${base}/refer/${member.memberCode}` : `${base}/join`;
+  const qrUrl = joinDeepLink(member?.memberCode);
   const practiceName = member?.practice.name ?? practice.name;
 
   const downloadHref = `/api/qr?size=1000&filename=${

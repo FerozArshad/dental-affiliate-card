@@ -4,9 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createTreatmentCheckout } from "@/lib/payments";
+import { sendWhatsApp } from "@/lib/whatsapp";
+import { onQualifyingPurchase, releaseMaturedCredits } from "@/lib/rewards";
+import { normalizePhone, writeAudit } from "@/lib/audit";
 import {
   PRACTICE_NAME,
   REFERRAL_DISCOUNT_PERCENT,
+  CREDIT_HOLD_DAYS,
+  LEVEL2_OVERRIDE_PERCENT,
   getTier,
   stackDiscounts,
 } from "@/lib/constants";
@@ -18,30 +23,6 @@ async function getDefaultPractice() {
   });
   if (!practice) throw new Error("No practice configured");
   return practice;
-}
-
-async function sendWhatsApp(phone: string, body: string, memberId?: string) {
-  await prisma.whatsAppMessage.create({
-    data: { phone, body, memberId, direction: "outbound" },
-  });
-}
-
-/** Store a % discount on the member's Gold Card (not cash). */
-async function grantStoredCredit(opts: {
-  memberId: string;
-  percent: number;
-  label: string;
-  referralId?: string;
-}) {
-  return prisma.discountCredit.create({
-    data: {
-      memberId: opts.memberId,
-      percent: opts.percent,
-      label: opts.label,
-      status: "available",
-      referralId: opts.referralId,
-    },
-  });
 }
 
 function formatGbp(amount: number) {
@@ -68,6 +49,14 @@ export async function enrollMember(formData: FormData) {
     return { error: "Name and phone are required" };
   }
 
+  const phoneNormalized = normalizePhone(phone);
+  const dup = await prisma.member.findFirst({
+    where: { OR: [{ phone }, { phoneNormalized }] },
+  });
+  if (dup) {
+    return { error: "This phone is already registered", memberCode: dup.memberCode };
+  }
+
   const practice = await getDefaultPractice();
   let memberCode = generateMemberCode(name);
   while (await prisma.member.findUnique({ where: { memberCode } })) {
@@ -88,20 +77,20 @@ export async function enrollMember(formData: FormData) {
       familyGroupId,
       name,
       phone,
+      phoneNormalized,
       memberCode,
     },
   });
 
-  // Walk-in join → instant 5% stored on their Gold Card
-  await grantStoredCredit({
-    memberId: member.id,
-    percent: REFERRAL_DISCOUNT_PERCENT,
-    label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — join bonus`,
+  await writeAudit({
+    type: "member.enrolled",
+    subjectId: member.id,
+    meta: { memberCode, via: "enroll_form" },
   });
 
   await sendWhatsApp(
     phone,
-    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\nYou've got ${REFERRAL_DISCOUNT_PERCENT}% stored on your card — ready for your next treatment.\n\nShare your link: friends get ${REFERRAL_DISCOUNT_PERCENT}% when they join, and you get ${REFERRAL_DISCOUNT_PERCENT}% too (stored — not cash).`,
+    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\nShare REF-${memberCode} — friends get ${REFERRAL_DISCOUNT_PERCENT}% off their first qualifying treatment; you earn ${REFERRAL_DISCOUNT_PERCENT}% after they complete it (held ${CREDIT_HOLD_DAYS} days). Level-2 override ${LEVEL2_OVERRIDE_PERCENT}%. No reward for signup alone.`,
     member.id
   );
 
@@ -117,6 +106,14 @@ export async function enrollViaReferral(formData: FormData) {
 
   if (!referrerCode || !name || !phone) {
     return { error: "All fields are required" };
+  }
+
+  const phoneNormalized = normalizePhone(phone);
+  const dup = await prisma.member.findFirst({
+    where: { OR: [{ phone }, { phoneNormalized }] },
+  });
+  if (dup) {
+    return { error: "This phone is already registered", memberCode: dup.memberCode };
   }
 
   const referrer = await prisma.member.findUnique({
@@ -159,55 +156,41 @@ export async function enrollViaReferral(formData: FormData) {
       familyGroupId: relationship === "family" ? familyGroupId : undefined,
       name,
       phone,
+      phoneNormalized,
       memberCode,
     },
   });
 
-  const rewardPercent = referrer.practice.doubleRewardActive
-    ? REFERRAL_DISCOUNT_PERCENT * 2
-    : REFERRAL_DISCOUNT_PERCENT;
-
-  // Reward both sides immediately when friend joins (not after first visit).
-  const referral = await prisma.referral.create({
+  // Pending until qualifying purchase — no credit at signup.
+  await prisma.referral.create({
     data: {
       referrerId: referrer.id,
       referredMemberId: member.id,
       relationship,
-      status: "completed",
-      completedAt: new Date(),
+      status: "pending",
     },
   });
 
-  await grantStoredCredit({
-    memberId: member.id,
-    percent: REFERRAL_DISCOUNT_PERCENT,
-    label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — joined via ${referrer.name}`,
-  });
-
-  await grantStoredCredit({
-    memberId: referrer.id,
-    percent: rewardPercent,
-    label: `${rewardPercent}% for referring ${name}`,
-    referralId: referral.id,
-  });
-
-  const completedCount = referrer.referralsMade.length + 1;
-  const tier = getTier(completedCount);
-  const remaining = tier.nextAt
-    ? Math.max(tier.nextAt - completedCount, 0)
-    : 0;
+  const tier = getTier(referrer.referralsMade.length);
 
   await sendWhatsApp(
     phone,
-    `Hi ${name}! Welcome to ${PRACTICE_NAME}.\n\nReferred by ${referrer.name} — you've got ${REFERRAL_DISCOUNT_PERCENT}% stored on your Gold Card.\nYour code: ${memberCode}\nShare your own link to earn more.`,
+    `Hi ${name}! Welcome to ${PRACTICE_NAME}.\n\nReferred by ${referrer.name}. Complete a qualifying treatment for ${REFERRAL_DISCOUNT_PERCENT}% off. Your Gold Card: ${memberCode} — share REF-${memberCode} going forward.`,
     member.id
   );
 
   await sendWhatsApp(
     referrer.phone,
-    `${name} joined via your link (${relationship})!\n\nYou've earned ${rewardPercent}% stored on your Gold Card.\nTier: ${tier.name}. ${remaining > 0 ? `${remaining} more referral(s) to next tier.` : "You're at the top tier!"}`,
+    `${name} joined via your link (${relationship}). You'll earn ${REFERRAL_DISCOUNT_PERCENT}% after their first qualifying treatment (held ${CREDIT_HOLD_DAYS} days).\nTier: ${tier.name}.`,
     referrer.id
   );
+
+  await writeAudit({
+    type: "member.referred_signup",
+    actorId: referrer.id,
+    subjectId: member.id,
+    meta: { memberCode, referrerCode },
+  });
 
   revalidateAll();
   revalidatePath(`/member/${referrer.memberCode}`);
@@ -233,8 +216,10 @@ export async function botRegister(input: BotRegisterInput) {
     return { error: "Name and phone are required" };
   }
 
-  // Duplicate guard: same phone already a member
-  const existing = await prisma.member.findFirst({ where: { phone } });
+  const phoneNormalized = normalizePhone(phone);
+  const existing = await prisma.member.findFirst({
+    where: { OR: [{ phone }, { phoneNormalized }] },
+  });
   if (existing) {
     return {
       success: true,
@@ -262,7 +247,6 @@ export async function botRegister(input: BotRegisterInput) {
     : await getDefaultPractice();
   if (!practice) return { error: "No practice configured" };
 
-  // Family group handling for referrals
   let familyGroupId: string | undefined;
   if (referrer && relationship === "family") {
     if (referrer.familyGroupId) {
@@ -292,12 +276,12 @@ export async function botRegister(input: BotRegisterInput) {
       familyGroupId,
       name,
       phone,
+      phoneNormalized,
       email: email || undefined,
       memberCode,
     },
   });
 
-  // Log the inbound "bot" conversation
   await prisma.whatsAppMessage.create({
     data: {
       memberId: member.id,
@@ -310,67 +294,40 @@ export async function botRegister(input: BotRegisterInput) {
   });
 
   if (referrer) {
-    const practiceWithFlags = await prisma.practice.findUnique({
-      where: { id: referrer.practiceId },
-    });
-    const rewardPercent = practiceWithFlags?.doubleRewardActive
-      ? REFERRAL_DISCOUNT_PERCENT * 2
-      : REFERRAL_DISCOUNT_PERCENT;
-
-    // Friend joins → both get 5% stored immediately.
-    const referral = await prisma.referral.create({
+    await prisma.referral.create({
       data: {
         referrerId: referrer.id,
         referredMemberId: member.id,
         relationship,
-        status: "completed",
-        completedAt: new Date(),
+        status: "pending",
       },
     });
 
-    await grantStoredCredit({
-      memberId: member.id,
-      percent: REFERRAL_DISCOUNT_PERCENT,
-      label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — joined via ${referrer.name}`,
-    });
-
-    await grantStoredCredit({
-      memberId: referrer.id,
-      percent: rewardPercent,
-      label: `${rewardPercent}% for referring ${name}`,
-      referralId: referral.id,
-    });
-
-    const completedCount = await prisma.referral.count({
-      where: { referrerId: referrer.id, status: "completed" },
-    });
-    const tier = getTier(completedCount);
-
     await sendWhatsApp(
       phone,
-      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nReferred by ${referrer.name} — you've got ${REFERRAL_DISCOUNT_PERCENT}% stored on your Gold Card.\nYour code: ${memberCode}\nShare your own link to earn more.`,
+      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nReferred by ${referrer.name} — book a qualifying treatment for ${REFERRAL_DISCOUNT_PERCENT}% off.\nYour Gold Card: ${memberCode}\nShare REF-${memberCode} with others.`,
       member.id
     );
 
     await sendWhatsApp(
       referrer.phone,
-      `${name} just joined via your referral link (${relationship})!\n\nYou've earned ${rewardPercent}% stored on your Gold Card.\nTier: ${tier.name}.`,
+      `${name} joined via your referral link (${relationship}). You'll earn ${REFERRAL_DISCOUNT_PERCENT}% after their first qualifying treatment (held ${CREDIT_HOLD_DAYS} days).`,
       referrer.id
     );
   } else {
-    // Walk-in scan → instant 5% welcome credit
-    await grantStoredCredit({
-      memberId: member.id,
-      percent: REFERRAL_DISCOUNT_PERCENT,
-      label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — join bonus`,
-    });
-
     await sendWhatsApp(
       phone,
-      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nYour Gold Card: ${memberCode}\nYou've got ${REFERRAL_DISCOUNT_PERCENT}% stored — ready to use.\nShare your link: friends get ${REFERRAL_DISCOUNT_PERCENT}% when they join, and you get ${REFERRAL_DISCOUNT_PERCENT}% too.`,
+      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nYour Gold Card: ${memberCode}\nShare REF-${memberCode} — friends get ${REFERRAL_DISCOUNT_PERCENT}% on first qualifying treatment; you earn ${REFERRAL_DISCOUNT_PERCENT}% after they complete it. Level-2 override ${LEVEL2_OVERRIDE_PERCENT}%.`,
       member.id
     );
   }
+
+  await writeAudit({
+    type: "member.bot_registered",
+    subjectId: member.id,
+    actorId: referrer?.id,
+    meta: { memberCode, referrerCode: referrerCode || null },
+  });
 
   revalidateAll();
   if (referrer) revalidatePath(`/member/${referrer.memberCode}`);
@@ -395,6 +352,8 @@ export async function completeVisit(formData: FormData) {
     return { error: "Valid member and treatment value required" };
   }
 
+  await releaseMaturedCredits();
+
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: {
@@ -410,12 +369,15 @@ export async function completeVisit(formData: FormData) {
   let storedDiscountPct = 0;
   let discountAmount = 0;
   let redeemedCreditIds: string[] = [];
-  // Legacy: older referrals stayed "pending" until first visit.
   const pendingReferral = member.referredBy?.status === "pending";
   const fromReferral = Boolean(member.referredBy);
 
-  // Discounts now live as stored credits from signup — apply those (no extra
-  // free 5% on top, which would double-reward referred friends).
+  // First qualifying visit as a referred friend → 5% welcome on this bill
+  if (pendingReferral) {
+    friendDiscountPct = REFERRAL_DISCOUNT_PERCENT;
+    discountAmount += (treatmentValue * friendDiscountPct) / 100;
+  }
+
   if (applyStoredDiscount) {
     const familyMemberIds = member.familyGroup?.members.map((m) => m.id) ?? [
       member.id,
@@ -434,13 +396,6 @@ export async function completeVisit(formData: FormData) {
       discountAmount += (treatmentValue * storedDiscountPct) / 100;
       redeemedCreditIds = stacked.creditIds;
     }
-  }
-
-  // Legacy path only: if an old pending referral never got join credits,
-  // still give the friend their one-time 5% at this visit.
-  if (pendingReferral && storedDiscountPct === 0) {
-    friendDiscountPct = REFERRAL_DISCOUNT_PERCENT;
-    discountAmount += (treatmentValue * friendDiscountPct) / 100;
   }
 
   const finalAmount = Math.max(treatmentValue - discountAmount, 0);
@@ -469,65 +424,27 @@ export async function completeVisit(formData: FormData) {
       },
     });
 
-    const stackNote =
-      redeemedCreditIds.length > 1
-        ? ` (${redeemedCreditIds.length} stored discounts combined)`
-        : "";
     await sendWhatsApp(
       member.phone,
-      `Your stored ${storedDiscountPct}% family discount was applied${stackNote}. Treatment: ${formatGbp(treatmentValue)} → You pay: ${formatGbp(finalAmount)}`,
+      `Your stored ${storedDiscountPct}% family discount was applied. Treatment: ${formatGbp(treatmentValue)} → You pay: ${formatGbp(finalAmount)}`,
       member.id
     );
   }
 
-  if (pendingReferral && member.referredBy) {
-    const referral = member.referredBy;
+  // Purchase-gated L1 / L2 rewards (not signup)
+  await onQualifyingPurchase({
+    memberId,
+    visitId: visit.id,
+    treatmentValue,
+  });
 
-    await prisma.referral.update({
-      where: { id: referral.id },
-      data: { status: "completed", completedAt: new Date() },
-    });
-
-    // Only grant referrer credit if this legacy referral never got one at join.
-    const existingReward = await prisma.discountCredit.findUnique({
-      where: { referralId: referral.id },
-    });
-
-    if (!existingReward) {
-      const referrerCompleted = await prisma.referral.count({
-        where: { referrerId: referral.referrerId, status: "completed" },
-      });
-      const tier = getTier(referrerCompleted);
-      const rewardPercent = member.practice.doubleRewardActive
-        ? REFERRAL_DISCOUNT_PERCENT * 2
-        : REFERRAL_DISCOUNT_PERCENT;
-
-      await grantStoredCredit({
-        memberId: referral.referrerId,
-        percent: rewardPercent,
-        label: `${rewardPercent}% for referring ${member.name}`,
-        referralId: referral.id,
-      });
-
-      const nextTierHint = tier.nextAt
-        ? ` ${Math.max(tier.nextAt - referrerCompleted, 0)} more referral(s) to next tier.`
-        : " Platinum unlocked!";
-
-      await sendWhatsApp(
-        referral.referrer.phone,
-        `Great news! ${member.name} completed their first visit.\n\nYou've earned ${rewardPercent}% stored on your Gold Card.\nTier: ${tier.name}.${nextTierHint}`,
-        referral.referrerId
-      );
-    }
-
-    if (friendDiscountPct > 0) {
-      await sendWhatsApp(
-        member.phone,
-        `Thanks for visiting! Your ${friendDiscountPct}% referral welcome discount was applied. Final amount: ${formatGbp(finalAmount)}\n\nOpen your Gold Card to refer others and earn more stored discounts.`,
-        member.id
-      );
-    }
-  } else if (!redeemedCreditIds.length && friendDiscountPct === 0) {
+  if (friendDiscountPct > 0) {
+    await sendWhatsApp(
+      member.phone,
+      `Thanks for visiting! Your ${friendDiscountPct}% referral welcome discount was applied. Final: ${formatGbp(finalAmount)}\n\nShare REF-${member.memberCode} to grow your Gold Card.`,
+      member.id
+    );
+  } else if (!redeemedCreditIds.length) {
     await sendWhatsApp(
       member.phone,
       `Visit recorded. Treatment: ${formatGbp(treatmentValue)}. Amount due: ${formatGbp(finalAmount)}`,
@@ -712,6 +629,7 @@ export async function getDashboardStats() {
 }
 
 export async function getMemberByCode(code: string) {
+  await releaseMaturedCredits();
   return prisma.member.findUnique({
     where: { memberCode: code },
     include: {
@@ -734,8 +652,7 @@ export async function getPracticePublic() {
 
 /**
  * Start an online card payment for a treatment.
- * Auto-applies the member's best available stored family discount to the
- * amount, then opens Stripe Checkout for the discounted total.
+ * Auto-applies available (post-hold) stored family discounts.
  */
 export async function startTreatmentPayment(formData: FormData) {
   const memberCode = String(formData.get("memberCode") ?? "").trim();
@@ -745,11 +662,14 @@ export async function startTreatmentPayment(formData: FormData) {
     return { error: "Enter a valid treatment amount." };
   }
 
+  await releaseMaturedCredits();
+
   const member = await prisma.member.findUnique({
     where: { memberCode },
     include: {
       practice: true,
       familyGroup: { include: { members: true } },
+      referredBy: true,
     },
   });
   if (!member) return { error: "Member not found." };
@@ -762,14 +682,21 @@ export async function startTreatmentPayment(formData: FormData) {
     orderBy: { percent: "desc" },
   });
 
-  // Stack the member's stored discounts into one combined discount (capped).
   const { percent, creditIds } = stackDiscounts(availableCredits);
-  const discountAmount = Math.round(((amount * percent) / 100) * 100) / 100;
+
+  // First qualifying visit as referred friend → bake welcome 5% into Stripe amount
+  let friendPct = 0;
+  if (member.referredBy?.status === "pending") {
+    friendPct = REFERRAL_DISCOUNT_PERCENT;
+  }
+
+  const totalPct = Math.min(percent + friendPct, 100);
+  const discountAmount = Math.round(((amount * totalPct) / 100) * 100) / 100;
   const discounted = Math.round((amount - discountAmount) * 100) / 100;
 
   const description =
-    percent > 0
-      ? `Treatment at ${member.practice.name} (${percent}% Gold Card discount applied)`
+    totalPct > 0
+      ? `Treatment at ${member.practice.name} (${totalPct}% Gold Card discount applied)`
       : `Treatment at ${member.practice.name}`;
 
   const res = await createTreatmentCheckout({
@@ -780,9 +707,9 @@ export async function startTreatmentPayment(formData: FormData) {
       memberId: member.id,
       treatmentValue: String(amount),
       storedDiscountPct: String(percent),
+      friendDiscountPct: String(friendPct),
       discountAmount: String(discountAmount),
       finalAmount: String(discounted),
-      // Comma-separated list of the credits consumed by this payment.
       creditIds: creditIds.join(","),
     },
   });

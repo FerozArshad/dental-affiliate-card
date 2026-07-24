@@ -24,8 +24,8 @@ export function ReferralForm({ referrerCode, referrerName }: {
       <Card className="text-center">
         <p className="text-lg font-semibold text-emerald-300">You&apos;re in!</p>
         <p className="mt-2 text-stone-400">
-          You now have your own Gold Card with 5% stored. Share your link so
-          others can join too.
+          You now have your own Gold Card. Complete a treatment for 5% off if
+          you were referred — then share REF code to earn after friends qualify.
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <Link

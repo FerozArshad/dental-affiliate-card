@@ -130,7 +130,7 @@ export function GoldCard({
             <p className="text-sm font-medium text-amber-100">
               {availableDiscounts > 0
                 ? `You have ${stackedPercent}% stored — ready to use`
-                : `Refer family to earn ${cashbackPercent}% off next treatment`}
+                : `Refer family — earn ${cashbackPercent}% after they complete treatment`}
             </p>
             {availableDiscounts > 1 && (
               <p className="mt-0.5 text-xs text-amber-200/80">

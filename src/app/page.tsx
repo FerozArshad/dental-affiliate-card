@@ -28,9 +28,11 @@ export default async function HomePage() {
           The Dental Scotland Gold Card
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-stone-400">
-          Join and get <strong className="text-amber-200">5% stored</strong> on
-          your Gold Card. Share your link — your friend gets 5%, and you get
-          another 5% when they join. No cash payouts.
+          Join free, share your{" "}
+          <strong className="text-amber-200">REF code</strong>. Friends get 5%
+          off their first paid treatment — you earn 5% after they complete it
+          (held 14 days). Level-2 override 2%. No cash. No payoff for signup
+          alone.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link href="/join">
@@ -52,12 +54,12 @@ export default async function HomePage() {
           {
             icon: Gift,
             title: "Stored discounts",
-            text: "5% stored on your card at join — not cash",
+            text: "5% after qualifying treatment — held 14 days",
           },
           {
             icon: Users,
-            title: "Family sharing + tiers",
-            text: "Friend joins → you both get 5%. Climb Silver → Gold → Platinum",
+            title: "Two levels only",
+            text: "L1 = 5% direct · L2 = 2% override · nothing beyond",
           },
           {
             icon: MessageCircle,
@@ -100,12 +102,12 @@ export default async function HomePage() {
       <section className="mt-16 rounded-3xl border border-white/10 bg-gradient-to-br from-amber-500/10 to-transparent p-8">
         <h2 className="text-xl font-semibold">How the discount process works</h2>
         <ol className="mt-4 space-y-3 text-sm text-stone-300">
-          <li>1. Scan desk QR / join → you get 5% stored on your Gold Card</li>
-          <li>2. Share your referral link with family or a friend</li>
-          <li>3. Friend joins → they get 5% stored, and you get 5% stored too</li>
-          <li>4. Friend can share their own link and grow the chain</li>
-          <li>5. At treatment, stored discounts are applied (they can combine, up to 20%)</li>
-          <li>6. Pay at the desk or online — discount comes off the bill</li>
+          <li>1. Scan QR → WhatsApp (or web) onboarding → Gold Card + REF code</li>
+          <li>2. Share REF-YOURCODE with family / friends</li>
+          <li>3. Friend joins (pending) — no payout yet</li>
+          <li>4. Friend completes a qualifying paid treatment → they get 5% off that bill</li>
+          <li>5. You earn 5% stored (available after 14-day hold); their referrer&apos;s upline gets 2% L2 only</li>
+          <li>6. Nothing pays beyond level 2 · monthly referral cap applies</li>
         </ol>
       </section>
     </div>

@@ -164,8 +164,12 @@ export default async function DashboardPage() {
         <Card>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
             <MessageCircle className="h-5 w-5 text-emerald-400" />
-            Simulated WhatsApp
+            WhatsApp log
           </h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Outbound + inbound. Live send when WHATSAPP_* keys are set; otherwise
+            DB-only.
+          </p>
           <div className="mt-4 max-h-96 space-y-3 overflow-y-auto">
             {stats.messages.map((msg) => (
               <div

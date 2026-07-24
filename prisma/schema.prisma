@@ -35,6 +35,7 @@ model Member {
   familyGroupId   String?
   name            String
   phone           String
+  phoneNormalized String?
   email           String?
   memberCode      String            @unique
   memberSince     DateTime          @default(now())
@@ -51,53 +52,64 @@ model Member {
 
   @@index([practiceId])
   @@index([familyGroupId])
+  @@index([phoneNormalized])
 }
 
 model Referral {
-  id               String          @id @default(cuid())
+  id               String           @id @default(cuid())
   referrerId       String
-  referredMemberId String          @unique
-  relationship     String          @default("family")
-  status           String          @default("pending")
-  createdAt        DateTime        @default(now())
+  referredMemberId String           @unique
+  relationship     String           @default("family")
+  status           String           @default("pending")
+  createdAt        DateTime         @default(now())
   completedAt      DateTime?
-  referrer         Member          @relation("Referrer", fields: [referrerId], references: [id])
-  referred         Member          @relation("Referred", fields: [referredMemberId], references: [id])
-  discountCredit   DiscountCredit?
+  referrer         Member           @relation("Referrer", fields: [referrerId], references: [id])
+  referred         Member           @relation("Referred", fields: [referredMemberId], references: [id])
+  discountCredits  DiscountCredit[]
+
+  @@index([referrerId, status])
+  @@index([createdAt])
 }
 
 model DiscountCredit {
   id                  String    @id @default(cuid())
   memberId            String
-  referralId          String?   @unique
+  referralId          String?
+  /// 1 = direct referral reward, 2 = level-2 override (max depth)
+  rewardLevel         Int       @default(1)
   percent             Int       @default(5)
   label               String
-  status              String    @default("available")
+  /// pending (hold window) | available | redeemed | cancelled
+  status              String    @default("pending")
   earnedAt            DateTime  @default(now())
+  availableAt         DateTime?
   redeemedAt          DateTime?
   redeemedForMemberId String?
   visitId             String?
+  sourceVisitId       String?
   member              Member    @relation(fields: [memberId], references: [id])
   referral            Referral? @relation(fields: [referralId], references: [id])
   visit               Visit?    @relation(fields: [visitId], references: [id])
 
+  @@unique([referralId, rewardLevel])
   @@index([memberId, status])
+  @@index([status, availableAt])
 }
 
 model Visit {
-  id                String          @id @default(cuid())
+  id                String           @id @default(cuid())
   memberId          String
   treatmentValue    Float
-  friendDiscountPct Int             @default(0)
-  storedDiscountPct Int             @default(0)
-  discountAmount    Float           @default(0)
+  friendDiscountPct Int              @default(0)
+  storedDiscountPct Int              @default(0)
+  discountAmount    Float            @default(0)
   finalAmount       Float
   notes             String?
-  fromReferral      Boolean         @default(false)
-  paidOnline        Boolean         @default(false)
-  stripeSessionId   String?         @unique
-  createdAt         DateTime        @default(now())
-  member            Member          @relation(fields: [memberId], references: [id])
+  fromReferral      Boolean          @default(false)
+  paidOnline        Boolean          @default(false)
+  stripeSessionId   String?          @unique
+  createdAt         DateTime         @default(now())
+  member            Member           @relation(fields: [memberId], references: [id])
   redeemedCredits   DiscountCredit[]
   reviewRequest     ReviewRequest?
 
@@ -124,4 +136,29 @@ model WhatsAppMessage {
   member    Member?  @relation(fields: [memberId], references: [id])
 
   @@index([memberId])
+  @@index([phone, createdAt])
+}
+
+/// Inbound WhatsApp onboarding conversation state
+model WhatsAppSession {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  step         String   @default("start")
+  referrerCode String?
+  name         String?
+  email        String?
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  type      String
+  actorId   String?
+  subjectId String?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([subjectId])
 }

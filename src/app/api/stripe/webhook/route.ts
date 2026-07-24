@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/db";
+import { onQualifyingPurchase, releaseMaturedCredits } from "@/lib/rewards";
+import { sendWhatsApp } from "@/lib/whatsapp";
 
-// Stripe webhooks need the Node runtime (raw body + crypto) and must never be cached.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,6 @@ export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature");
   if (!sig) return new Response("Missing signature", { status: 400 });
 
-  // Raw body is required for signature verification.
   const body = await req.text();
 
   const StripeCtor = (await import("stripe")).default;
@@ -47,40 +47,45 @@ async function handleCompletedCheckout(session: Stripe.Checkout.Session) {
   const sessionId = session.id;
   if (!memberId || !sessionId) return;
 
-  // Idempotency: if this session was already processed, do nothing.
   const existing = await prisma.visit.findUnique({
     where: { stripeSessionId: sessionId },
   });
   if (existing) return;
 
+  await releaseMaturedCredits();
+
   const treatmentValue = Number(meta.treatmentValue) || 0;
   const storedDiscountPct = Number(meta.storedDiscountPct) || 0;
+  const friendDiscountPct = Number(meta.friendDiscountPct) || 0;
   const discountAmount = Number(meta.discountAmount) || 0;
   const finalAmount =
     Number(meta.finalAmount) ||
     (session.amount_total != null ? session.amount_total / 100 : 0);
-  // Newer sessions carry a comma-separated `creditIds`; fall back to the older
-  // single `creditId` for any in-flight sessions created before the change.
   const creditIds = (meta.creditIds || meta.creditId || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    include: { referredBy: true },
+  });
+
   const visit = await prisma.visit.create({
     data: {
       memberId,
       treatmentValue,
+      friendDiscountPct,
       storedDiscountPct,
       discountAmount,
       finalAmount,
+      fromReferral: Boolean(member?.referredBy),
       paidOnline: true,
       stripeSessionId: sessionId,
       notes: "Paid online via Stripe",
     },
   });
 
-  // Redeem the stored discounts that were applied — only those still available
-  // (updateMany makes this safely idempotent).
   if (creditIds.length) {
     await prisma.discountCredit.updateMany({
       where: { id: { in: creditIds }, status: "available" },
@@ -93,23 +98,22 @@ async function handleCompletedCheckout(session: Stripe.Checkout.Session) {
     });
   }
 
-  const member = await prisma.member.findUnique({ where: { id: memberId } });
+  // Qualifying purchase → L1 / L2 held rewards
+  await onQualifyingPurchase({
+    memberId,
+    visitId: visit.id,
+    treatmentValue,
+  });
+
   if (member) {
-    await prisma.whatsAppMessage.create({
-      data: {
-        memberId: member.id,
-        phone: member.phone,
-        body:
-          `Payment received: £${finalAmount.toFixed(2)}` +
-          (storedDiscountPct > 0
-            ? ` — your ${storedDiscountPct}% Gold Card discount${
-                creditIds.length > 1
-                  ? ` (${creditIds.length} stored discounts combined)`
-                  : ""
-              } was applied.`
-            : ".") +
-          " Thank you!",
-      },
-    });
+    await sendWhatsApp(
+      member.phone,
+      `Payment received: £${finalAmount.toFixed(2)}` +
+        (discountAmount > 0
+          ? ` — Gold Card discount applied (£${discountAmount.toFixed(2)}).`
+          : ".") +
+        " Thank you!",
+      member.id
+    );
   }
 }

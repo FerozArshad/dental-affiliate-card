@@ -7,8 +7,14 @@ import { QrBlock } from "@/components/qr-block";
 import { PayOnline } from "@/components/pay-online";
 import { Card } from "@/components/ui/card";
 import { getMemberByCode } from "@/lib/actions";
-import { getAppBaseUrl, getTier, stackDiscounts, REFERRAL_DISCOUNT_PERCENT } from "@/lib/constants";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  getAppBaseUrl,
+  getTier,
+  stackDiscounts,
+  REFERRAL_DISCOUNT_PERCENT,
+  CREDIT_HOLD_DAYS,
+} from "@/lib/constants";
+import { formatCurrency, formatDate, joinDeepLink } from "@/lib/utils";
 
 export default async function MemberPage({
   params,
@@ -26,16 +32,18 @@ export default async function MemberPage({
   const availableCredits = member.discountCredits.filter(
     (d) => d.status === "available"
   );
+  const pendingCredits = member.discountCredits.filter(
+    (d) => d.status === "pending"
+  );
   const availableDiscounts = availableCredits.length;
   const storedPercents = availableCredits.map((d) => d.percent);
-  // Combined discount that will actually be applied at checkout (stacked + capped).
   const { percent: stackedPercent } = stackDiscounts(availableCredits);
   const completedReferrals = member.referralsMade.filter(
     (r) => r.status === "completed"
   ).length;
   const tier = getTier(completedReferrals);
   const baseUrl = getAppBaseUrl();
-  const referUrl = `${baseUrl}/refer/${member.memberCode}`;
+  const referUrl = joinDeepLink(member.memberCode);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12">
@@ -147,12 +155,14 @@ export default async function MemberPage({
           <Card>
             <h2 className="font-semibold text-white">Stored discounts</h2>
             <p className="mt-1 text-sm text-stone-500">
-              Not cash — applied at front desk on next family treatment
+              Earned after qualifying treatments. Pending = {CREDIT_HOLD_DAYS}
+              -day hold (return window). Not cash.
             </p>
             <div className="mt-4 space-y-2">
               {member.discountCredits.length === 0 && (
                 <p className="text-sm text-stone-500">
-                  No discounts yet. Refer someone!
+                  No discounts yet. Share REF-{member.memberCode} — earn when
+                  friends complete treatment.
                 </p>
               )}
               {member.discountCredits.map((credit) => (
@@ -166,11 +176,19 @@ export default async function MemberPage({
                     </p>
                     <p className="text-xs text-stone-500">
                       Earned {formatDate(credit.earnedAt)}
+                      {credit.rewardLevel === 2 ? " · L2 override" : " · L1"}
+                      {credit.status === "pending" && credit.availableAt
+                        ? ` · ready ${formatDate(credit.availableAt)}`
+                        : ""}
                     </p>
                   </div>
                   {credit.status === "available" ? (
                     <span className="flex items-center gap-1 text-xs text-amber-300">
                       <Clock className="h-3.5 w-3.5" /> Ready
+                    </span>
+                  ) : credit.status === "pending" ? (
+                    <span className="flex items-center gap-1 text-xs text-stone-400">
+                      <Clock className="h-3.5 w-3.5" /> Holding
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -180,6 +198,11 @@ export default async function MemberPage({
                 </div>
               ))}
             </div>
+            {pendingCredits.length > 0 && (
+              <p className="mt-3 text-xs text-stone-500">
+                {pendingCredits.length} credit(s) in hold window.
+              </p>
+            )}
           </Card>
 
           <Card>
@@ -204,8 +227,8 @@ export default async function MemberPage({
                   </p>
                   <p className="text-xs text-stone-500">
                     {ref.status === "completed"
-                      ? `Joined — you both earned ${REFERRAL_DISCOUNT_PERCENT}% stored`
-                      : "Pending"}
+                      ? `Qualified — you earned L1 ${REFERRAL_DISCOUNT_PERCENT}% (after hold)`
+                      : "Pending their first qualifying treatment"}
                   </p>
                 </div>
               ))}

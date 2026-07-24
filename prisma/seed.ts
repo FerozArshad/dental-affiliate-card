@@ -196,9 +196,11 @@ async function main() {
     data: {
       memberId: emma.id,
       referralId: refLucy.id,
+      rewardLevel: 1,
       percent: 5,
-      label: "5% off next family treatment",
+      label: "5% L1 — Lucy completed treatment",
       status: "available",
+      availableAt: new Date("2026-02-22"),
       earnedAt: new Date("2026-02-22"),
     },
   });
@@ -207,9 +209,11 @@ async function main() {
     data: {
       memberId: emma.id,
       referralId: refMark.id,
+      rewardLevel: 1,
       percent: 7,
-      label: "7% off next family treatment",
+      label: "7% L1 — Mark completed treatment",
       status: "available",
+      availableAt: new Date("2026-03-04"),
       earnedAt: new Date("2026-03-04"),
     },
   });
