@@ -110,12 +110,12 @@ export function QrPoster({
             <Step
               icon={<Share2 className="h-5 w-5" />}
               title="2. Share"
-              body={`Send your link to family — they get ${discountPercent}% off.`}
+              body={`Send your REF code — they get ${discountPercent}% off first paid treatment.`}
             />
             <Step
               icon={<Gift className="h-5 w-5" />}
-              title="3. Save"
-              body="Earn stored discounts toward your family's next treatment."
+              title="3. Earn"
+              body={`You earn ${discountPercent}% after they complete treatment (held 14 days).`}
             />
           </div>
         )}
