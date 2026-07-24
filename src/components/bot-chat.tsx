@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bot, Send, ShieldCheck } from "lucide-react";
+import { Bot, Loader2, Send, ShieldCheck } from "lucide-react";
 import { botRegister } from "@/lib/actions";
 
 type Msg = { from: "bot" | "user"; text: string };
@@ -31,14 +31,14 @@ export function BotChat({
   relationshipDefault?: string;
 }) {
   const intro = referrerName
-    ? `Hi! I'm the ${practiceName} assistant. ${referrerName} invited you to our Gold Card — you'll get ${discountPercent}% off your first treatment, and your own card to share with family.`
-    : `Hi! I'm the ${practiceName} assistant. Join our Gold Card to get member discounts and refer family for ${discountPercent}% off — you earn stored discounts too (not cash).`;
+    ? `Hi! I'm the ${practiceName} assistant. ${referrerName} invited you — complete a qualifying treatment for ${discountPercent}% off, then get your own REF code to share.`
+    : `Hi! I'm the ${practiceName} assistant. Join our Gold Card free, then share your REF code. Friends get ${discountPercent}% on their first paid treatment; you earn ${discountPercent}% after they complete it (not cash).`;
 
   const [messages, setMessages] = useState<Msg[]>([
     { from: "bot", text: intro },
     {
       from: "bot",
-      text: "By continuing you agree to our Privacy Policy and to receive WhatsApp messages about your Gold Card. You can reply STOP anytime to opt out.",
+      text: "By continuing you agree to our Privacy Policy (/privacy) and to receive Gold Card messages. Reply STOP anytime to opt out. No reward for signup alone.",
     },
     { from: "bot", text: "What's your full name?" },
   ]);
@@ -54,7 +54,7 @@ export function BotChat({
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, pending]);
 
   function pushBot(text: string) {
     setMessages((m) => [...m, { from: "bot", text }]);
@@ -71,15 +71,22 @@ export function BotChat({
     setInput("");
 
     if (step === "name") {
+      if (value.length < 2) {
+        pushBot("Please enter your full name (at least 2 characters).");
+        return;
+      }
       setData((d) => ({ ...d, name: value }));
-      setTimeout(() => pushBot("Great! What's your email? (for your receipts & card)"), 250);
+      setTimeout(
+        () => pushBot("Great! What's your email? (for receipts & card)"),
+        250
+      );
       setStep("email");
       return;
     }
 
     if (step === "email") {
       if (!isEmail(value)) {
-        setTimeout(() => pushBot("Hmm, that doesn't look like a valid email. Please try again."), 250);
+        pushBot("Hmm, that doesn't look like a valid email. Please try again.");
         return;
       }
       setData((d) => ({ ...d, email: value }));
@@ -90,69 +97,79 @@ export function BotChat({
 
     if (step === "phone") {
       if (!isPhone(value)) {
-        setTimeout(() => pushBot("Please enter a valid phone number (with country code if possible)."), 250);
+        pushBot(
+          "Please enter a valid phone number (with country code if possible)."
+        );
         return;
       }
       const finalData = { ...data, phone: value };
       setData(finalData);
       setStep("confirm");
       setPending(true);
-      pushBot("Registering you now...");
+      pushBot("Registering you now…");
 
-      const res = await botRegister({
-        name: finalData.name,
-        email: finalData.email,
-        phone: finalData.phone,
-        referrerCode,
-        relationship: relationshipDefault,
-      });
+      try {
+        const res = await botRegister({
+          name: finalData.name,
+          email: finalData.email,
+          phone: finalData.phone,
+          referrerCode,
+          relationship: relationshipDefault,
+        });
 
-      setPending(false);
+        if (res.error) {
+          pushBot(
+            `Sorry, something went wrong: ${res.error}. Please try again with a different number, or type your phone again.`
+          );
+          setStep("phone");
+          return;
+        }
 
-      if (res.error) {
-        pushBot(`Sorry, something went wrong: ${res.error}. Please try again.`);
+        if (res.alreadyMember) {
+          pushBot(
+            `You're already a member! Your Gold Card code is ${res.memberCode}. Tap below to open it.`
+          );
+        } else {
+          pushBot(
+            `You're registered! ✅\n\nYour Gold Card code: ${res.memberCode}\n${
+              referrerName
+                ? `Complete a qualifying treatment for ${discountPercent}% off (referred by ${referrerName}). Share REF-${res.memberCode} — you earn ${discountPercent}% after friends complete treatment.`
+                : `No discount for signup alone. Share REF-${res.memberCode} — friends get ${discountPercent}% on first paid treatment; you earn ${discountPercent}% after they complete it.`
+            }`
+          );
+          pushBot("Tap below to open your Gold Card and start sharing.");
+        }
+
+        setResult({
+          memberCode: res.memberCode!,
+          alreadyMember: !!res.alreadyMember,
+        });
+        setStep("done");
+      } catch {
+        pushBot(
+          "Connection failed — please check your network and try your phone number again."
+        );
         setStep("phone");
-        return;
+      } finally {
+        setPending(false);
       }
-
-      if (res.alreadyMember) {
-        pushBot(
-          `You're already a member! Your Gold Card code is ${res.memberCode}. Opening your card...`
-        );
-      } else {
-        pushBot(
-          `You're registered! ✅\n\nYour Gold Card code: ${res.memberCode}\n${
-            referrerName
-              ? `Complete a qualifying treatment for ${discountPercent}% off (referred by ${referrerName}). Share REF-${res.memberCode} — you earn ${discountPercent}% after friends complete treatment.`
-              : `No discount for signup alone. Share REF-${res.memberCode} — friends get ${discountPercent}% on first paid treatment; you earn ${discountPercent}% after they complete it.`
-          }`
-        );
-        pushBot("Tap below to open your Gold Card and start sharing.");
-      }
-
-      setResult({
-        memberCode: res.memberCode!,
-        alreadyMember: !!res.alreadyMember,
-      });
-      setStep("done");
-      return;
     }
   }
 
   return (
     <div className="mx-auto flex h-[560px] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-stone-900 shadow-2xl">
-      {/* header */}
       <div className="flex items-center gap-3 border-b border-white/10 bg-emerald-700/90 px-4 py-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
           <Bot className="h-5 w-5 text-white" />
         </span>
         <div>
           <p className="text-sm font-semibold text-white">{practiceName}</p>
-          <p className="text-xs text-emerald-100">Gold Card assistant · online</p>
+          <p className="text-xs text-emerald-100">
+            Gold Card assistant · {pending ? "working…" : "online"}
+          </p>
         </div>
       </div>
 
-      {/* messages */}
       <div className="flex-1 space-y-3 overflow-y-auto bg-[#0b141a] px-4 py-4">
         {messages.map((m, i) => (
           <div
@@ -170,6 +187,13 @@ export function BotChat({
             </div>
           </div>
         ))}
+
+        {pending && (
+          <div className="flex items-center gap-2 text-xs text-stone-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Please wait…
+          </div>
+        )}
 
         {result && (
           <div className="flex flex-col gap-2 pt-2">
@@ -190,7 +214,6 @@ export function BotChat({
         <div ref={endRef} />
       </div>
 
-      {/* input */}
       <div className="border-t border-white/10 bg-stone-900 px-3 py-3">
         {step === "done" ? (
           <p className="flex items-center justify-center gap-1 py-2 text-xs text-stone-500">
@@ -202,7 +225,12 @@ export function BotChat({
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSend();
+                }
+              }}
               disabled={pending}
               placeholder={
                 step === "email"
@@ -211,14 +239,20 @@ export function BotChat({
                     ? "+44 7700 900000"
                     : "Type your answer..."
               }
-              className="flex-1 rounded-full border border-white/10 bg-stone-950 px-4 py-2.5 text-sm text-white outline-none placeholder:text-stone-600 focus:border-emerald-500/50"
+              className="flex-1 rounded-full border border-white/10 bg-stone-950 px-4 py-2.5 text-sm text-white outline-none placeholder:text-stone-600 focus:border-emerald-500/50 disabled:opacity-50"
             />
             <button
-              onClick={handleSend}
+              type="button"
+              onClick={() => void handleSend()}
               disabled={pending || !input.trim()}
+              aria-label="Send"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-white disabled:opacity-40"
             >
-              <Send className="h-4 w-4" />
+              {pending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </button>
           </div>
         )}

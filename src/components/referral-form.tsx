@@ -12,9 +12,16 @@ export function ReferralForm({ referrerCode, referrerName }: {
   referrerName: string;
 }) {
   const [state, action, pending] = useActionState(
-    async (_prev: { error?: string; memberCode?: string } | null, formData: FormData) => {
-      formData.set("referrerCode", referrerCode);
-      return enrollViaReferral(formData);
+    async (
+      _prev: { error?: string; memberCode?: string } | null,
+      formData: FormData
+    ) => {
+      try {
+        formData.set("referrerCode", referrerCode);
+        return await enrollViaReferral(formData);
+      } catch {
+        return { error: "Something went wrong. Please try again." };
+      }
     },
     null
   );
@@ -68,7 +75,7 @@ export function ReferralForm({ referrerCode, referrerName }: {
         </div>
         {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
         <Button type="submit" variant="gold" className="w-full" disabled={pending}>
-          {pending ? "Joining..." : "Join & get 5% stored"}
+          {pending ? "Joining..." : "Join Gold Card"}
         </Button>
       </form>
     </Card>

@@ -16,8 +16,19 @@ type MemberOption = {
 
 export function VisitForm({ members }: { members: MemberOption[] }) {
   const [state, action, pending] = useActionState(
-    async (_prev: { error?: string; success?: boolean; finalAmount?: number } | null, formData: FormData) => {
-      return completeVisit(formData);
+    async (
+      _prev: {
+        error?: string;
+        success?: boolean;
+        finalAmount?: number;
+      } | null,
+      formData: FormData
+    ) => {
+      try {
+        return await completeVisit(formData);
+      } catch {
+        return { error: "Something went wrong. Please try again." };
+      }
     },
     null
   );
@@ -70,7 +81,8 @@ export function VisitForm({ members }: { members: MemberOption[] }) {
             Apply stored family discount
           </span>
           <span className="block text-xs text-stone-500">
-            Uses oldest available discount from the patient&apos;s family group (not cash).
+            Uses available stored discounts from the patient's family group
+            (highest first, max 20% combined — not cash).
           </span>
         </span>
       </label>

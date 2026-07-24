@@ -9,8 +9,15 @@ import Link from "next/link";
 
 export function EnrollForm() {
   const [state, action, pending] = useActionState(
-    async (_prev: { error?: string; memberCode?: string } | null, formData: FormData) => {
-      return enrollMember(formData);
+    async (
+      _prev: { error?: string; memberCode?: string } | null,
+      formData: FormData
+    ) => {
+      try {
+        return await enrollMember(formData);
+      } catch {
+        return { error: "Something went wrong. Please try again." };
+      }
     },
     null
   );
