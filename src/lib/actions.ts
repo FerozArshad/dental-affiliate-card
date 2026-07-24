@@ -26,21 +26,20 @@ async function sendWhatsApp(phone: string, body: string, memberId?: string) {
   });
 }
 
-/** 5% stored on the Gold Card immediately at signup (walk-in or referred). */
-async function grantWelcomeDiscount(
-  memberId: string,
-  reason: "join" | "referral"
-) {
-  const pct = REFERRAL_DISCOUNT_PERCENT;
-  await prisma.discountCredit.create({
+/** Store a % discount on the member's Gold Card (not cash). */
+async function grantStoredCredit(opts: {
+  memberId: string;
+  percent: number;
+  label: string;
+  referralId?: string;
+}) {
+  return prisma.discountCredit.create({
     data: {
-      memberId,
-      percent: pct,
-      label:
-        reason === "referral"
-          ? `${pct}% welcome — joined via referral`
-          : `${pct}% welcome — Gold Card join`,
+      memberId: opts.memberId,
+      percent: opts.percent,
+      label: opts.label,
       status: "available",
+      referralId: opts.referralId,
     },
   });
 }
@@ -93,11 +92,16 @@ export async function enrollMember(formData: FormData) {
     },
   });
 
-  await grantWelcomeDiscount(member.id, "join");
+  // Walk-in join → instant 5% stored on their Gold Card
+  await grantStoredCredit({
+    memberId: member.id,
+    percent: REFERRAL_DISCOUNT_PERCENT,
+    label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — join bonus`,
+  });
 
   await sendWhatsApp(
     phone,
-    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\nYou have ${REFERRAL_DISCOUNT_PERCENT}% stored on your card — ready to use.\n\nShare your link: friends get ${REFERRAL_DISCOUNT_PERCENT}% when they join too. When they complete a visit, you earn another stored family discount.`,
+    `Welcome to ${PRACTICE_NAME} Gold Card!\n\nYour code: ${memberCode}\nYou've got ${REFERRAL_DISCOUNT_PERCENT}% stored on your card — ready for your next treatment.\n\nShare your link: friends get ${REFERRAL_DISCOUNT_PERCENT}% when they join, and you get ${REFERRAL_DISCOUNT_PERCENT}% too (stored — not cash).`,
     member.id
   );
 
@@ -159,31 +163,49 @@ export async function enrollViaReferral(formData: FormData) {
     },
   });
 
-  await prisma.referral.create({
+  const rewardPercent = referrer.practice.doubleRewardActive
+    ? REFERRAL_DISCOUNT_PERCENT * 2
+    : REFERRAL_DISCOUNT_PERCENT;
+
+  // Reward both sides immediately when friend joins (not after first visit).
+  const referral = await prisma.referral.create({
     data: {
       referrerId: referrer.id,
       referredMemberId: member.id,
       relationship,
-      status: "pending",
+      status: "completed",
+      completedAt: new Date(),
     },
   });
 
-  await grantWelcomeDiscount(member.id, "referral");
+  await grantStoredCredit({
+    memberId: member.id,
+    percent: REFERRAL_DISCOUNT_PERCENT,
+    label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — joined via ${referrer.name}`,
+  });
 
-  const tier = getTier(referrer.referralsMade.length);
+  await grantStoredCredit({
+    memberId: referrer.id,
+    percent: rewardPercent,
+    label: `${rewardPercent}% for referring ${name}`,
+    referralId: referral.id,
+  });
+
+  const completedCount = referrer.referralsMade.length + 1;
+  const tier = getTier(completedCount);
   const remaining = tier.nextAt
-    ? Math.max(tier.nextAt - referrer.referralsMade.length, 0)
+    ? Math.max(tier.nextAt - completedCount, 0)
     : 0;
 
   await sendWhatsApp(
     phone,
-    `Hi ${name}! Welcome to ${PRACTICE_NAME}.\n\nYou were referred by ${referrer.name}. You have ${REFERRAL_DISCOUNT_PERCENT}% stored on your Gold Card — ready to use.\n\nYour code: ${memberCode}\nShare your own link so friends get ${REFERRAL_DISCOUNT_PERCENT}% too.`,
+    `Hi ${name}! Welcome to ${PRACTICE_NAME}.\n\nReferred by ${referrer.name} — you've got ${REFERRAL_DISCOUNT_PERCENT}% stored on your Gold Card.\nYour code: ${memberCode}\nShare your own link to earn more.`,
     member.id
   );
 
   await sendWhatsApp(
     referrer.phone,
-    `${name} joined via your link (${relationship}) and already has their ${REFERRAL_DISCOUNT_PERCENT}% welcome. When they complete their first visit, you earn another stored family discount.\n\nYour tier: ${tier.name}. ${remaining > 0 ? `${remaining} more completed referral(s) to reach the next tier.` : "You're at the top tier!"}`,
+    `${name} joined via your link (${relationship})!\n\nYou've earned ${rewardPercent}% stored on your Gold Card.\nTier: ${tier.name}. ${remaining > 0 ? `${remaining} more referral(s) to next tier.` : "You're at the top tier!"}`,
     referrer.id
   );
 
@@ -288,34 +310,64 @@ export async function botRegister(input: BotRegisterInput) {
   });
 
   if (referrer) {
-    await prisma.referral.create({
+    const practiceWithFlags = await prisma.practice.findUnique({
+      where: { id: referrer.practiceId },
+    });
+    const rewardPercent = practiceWithFlags?.doubleRewardActive
+      ? REFERRAL_DISCOUNT_PERCENT * 2
+      : REFERRAL_DISCOUNT_PERCENT;
+
+    // Friend joins → both get 5% stored immediately.
+    const referral = await prisma.referral.create({
       data: {
         referrerId: referrer.id,
         referredMemberId: member.id,
         relationship,
-        status: "pending",
+        status: "completed",
+        completedAt: new Date(),
       },
     });
 
-    await grantWelcomeDiscount(member.id, "referral");
+    await grantStoredCredit({
+      memberId: member.id,
+      percent: REFERRAL_DISCOUNT_PERCENT,
+      label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — joined via ${referrer.name}`,
+    });
+
+    await grantStoredCredit({
+      memberId: referrer.id,
+      percent: rewardPercent,
+      label: `${rewardPercent}% for referring ${name}`,
+      referralId: referral.id,
+    });
+
+    const completedCount = await prisma.referral.count({
+      where: { referrerId: referrer.id, status: "completed" },
+    });
+    const tier = getTier(completedCount);
 
     await sendWhatsApp(
       phone,
-      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nReferred by ${referrer.name} — you have ${REFERRAL_DISCOUNT_PERCENT}% stored on your Gold Card, ready to use.\nYour code: ${memberCode}\n\nShare your link — friends get ${REFERRAL_DISCOUNT_PERCENT}% when they join too.`,
+      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nReferred by ${referrer.name} — you've got ${REFERRAL_DISCOUNT_PERCENT}% stored on your Gold Card.\nYour code: ${memberCode}\nShare your own link to earn more.`,
       member.id
     );
 
     await sendWhatsApp(
       referrer.phone,
-      `${name} just joined via your link (${relationship}) with ${REFERRAL_DISCOUNT_PERCENT}% already on their card. When they complete their first visit, you'll earn another stored family discount.`,
+      `${name} just joined via your referral link (${relationship})!\n\nYou've earned ${rewardPercent}% stored on your Gold Card.\nTier: ${tier.name}.`,
       referrer.id
     );
   } else {
-    await grantWelcomeDiscount(member.id, "join");
+    // Walk-in scan → instant 5% welcome credit
+    await grantStoredCredit({
+      memberId: member.id,
+      percent: REFERRAL_DISCOUNT_PERCENT,
+      label: `${REFERRAL_DISCOUNT_PERCENT}% welcome — join bonus`,
+    });
 
     await sendWhatsApp(
       phone,
-      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nYour Gold Card: ${memberCode}\nYou have ${REFERRAL_DISCOUNT_PERCENT}% stored — ready to use.\n\nShare your link: friends get ${REFERRAL_DISCOUNT_PERCENT}% when they join. When they visit, you earn more stored rewards (up to 10% at Platinum).`,
+      `Welcome ${name.split(" ")[0]}! You're registered at ${practice.name}.\n\nYour Gold Card: ${memberCode}\nYou've got ${REFERRAL_DISCOUNT_PERCENT}% stored — ready to use.\nShare your link: friends get ${REFERRAL_DISCOUNT_PERCENT}% when they join, and you get ${REFERRAL_DISCOUNT_PERCENT}% too.`,
       member.id
     );
   }
@@ -358,20 +410,12 @@ export async function completeVisit(formData: FormData) {
   let storedDiscountPct = 0;
   let discountAmount = 0;
   let redeemedCreditIds: string[] = [];
-  const fromReferral = member.referredBy?.status === "pending";
+  // Legacy: older referrals stayed "pending" until first visit.
+  const pendingReferral = member.referredBy?.status === "pending";
+  const fromReferral = Boolean(member.referredBy);
 
-  // New members get 5% stored at signup. Only apply a one-off visit % for
-  // older referred members who never received that welcome credit.
-  if (fromReferral) {
-    const ownCredits = await prisma.discountCredit.count({
-      where: { memberId: member.id, status: "available" },
-    });
-    if (ownCredits === 0) {
-      friendDiscountPct = REFERRAL_DISCOUNT_PERCENT;
-      discountAmount += (treatmentValue * friendDiscountPct) / 100;
-    }
-  }
-
+  // Discounts now live as stored credits from signup — apply those (no extra
+  // free 5% on top, which would double-reward referred friends).
   if (applyStoredDiscount) {
     const familyMemberIds = member.familyGroup?.members.map((m) => m.id) ?? [
       member.id,
@@ -384,13 +428,19 @@ export async function completeVisit(formData: FormData) {
       orderBy: { percent: "desc" },
     });
 
-    // Stack the family's stored discounts into one combined discount (capped).
     const stacked = stackDiscounts(availableCredits);
     if (stacked.creditIds.length) {
       storedDiscountPct = stacked.percent;
       discountAmount += (treatmentValue * storedDiscountPct) / 100;
       redeemedCreditIds = stacked.creditIds;
     }
+  }
+
+  // Legacy path only: if an old pending referral never got join credits,
+  // still give the friend their one-time 5% at this visit.
+  if (pendingReferral && storedDiscountPct === 0) {
+    friendDiscountPct = REFERRAL_DISCOUNT_PERCENT;
+    discountAmount += (treatmentValue * friendDiscountPct) / 100;
   }
 
   const finalAmount = Math.max(treatmentValue - discountAmount, 0);
@@ -430,51 +480,54 @@ export async function completeVisit(formData: FormData) {
     );
   }
 
-  if (fromReferral && member.referredBy) {
+  if (pendingReferral && member.referredBy) {
     const referral = member.referredBy;
-    const referrerCompleted = await prisma.referral.count({
-      where: { referrerId: referral.referrerId, status: "completed" },
-    });
-    const tier = getTier(referrerCompleted + 1);
-    const rewardPercent = member.practice.doubleRewardActive
-      ? tier.cashbackPercent * 2
-      : tier.cashbackPercent;
 
     await prisma.referral.update({
       where: { id: referral.id },
       data: { status: "completed", completedAt: new Date() },
     });
 
-    await prisma.discountCredit.create({
-      data: {
-        memberId: referral.referrerId,
-        referralId: referral.id,
-        percent: rewardPercent,
-        label: `${rewardPercent}% off next family treatment`,
-        status: "available",
-      },
+    // Only grant referrer credit if this legacy referral never got one at join.
+    const existingReward = await prisma.discountCredit.findUnique({
+      where: { referralId: referral.id },
     });
 
-    await sendWhatsApp(
-      member.phone,
-      `Thanks for visiting! Your ${friendDiscountPct}% referral welcome discount was applied. Final amount: ${formatGbp(finalAmount)}\n\nOpen your Gold Card to refer others and earn your own stored discounts.`,
-      member.id
-    );
+    if (!existingReward) {
+      const referrerCompleted = await prisma.referral.count({
+        where: { referrerId: referral.referrerId, status: "completed" },
+      });
+      const tier = getTier(referrerCompleted);
+      const rewardPercent = member.practice.doubleRewardActive
+        ? REFERRAL_DISCOUNT_PERCENT * 2
+        : REFERRAL_DISCOUNT_PERCENT;
 
-    const nextTierHint = tier.nextAt
-      ? ` ${Math.max(tier.nextAt - (referrerCompleted + 1), 0)} more referral(s) to next tier.`
-      : " Platinum unlocked!";
+      await grantStoredCredit({
+        memberId: referral.referrerId,
+        percent: rewardPercent,
+        label: `${rewardPercent}% for referring ${member.name}`,
+        referralId: referral.id,
+      });
 
-    await sendWhatsApp(
-      referral.referrer.phone,
-      `Great news! ${member.name} completed their visit.\n\nYou've earned ${rewardPercent}% off your family's next treatment (stored — not cash).\nTier: ${tier.name}.${nextTierHint}${
-        member.practice.prizeCampaignActive
-          ? `\n\nMonthly prize: ${member.practice.prizeLabel} — climb the leaderboard!`
-          : ""
-      }`,
-      referral.referrerId
-    );
-  } else if (!redeemedCreditIds.length) {
+      const nextTierHint = tier.nextAt
+        ? ` ${Math.max(tier.nextAt - referrerCompleted, 0)} more referral(s) to next tier.`
+        : " Platinum unlocked!";
+
+      await sendWhatsApp(
+        referral.referrer.phone,
+        `Great news! ${member.name} completed their first visit.\n\nYou've earned ${rewardPercent}% stored on your Gold Card.\nTier: ${tier.name}.${nextTierHint}`,
+        referral.referrerId
+      );
+    }
+
+    if (friendDiscountPct > 0) {
+      await sendWhatsApp(
+        member.phone,
+        `Thanks for visiting! Your ${friendDiscountPct}% referral welcome discount was applied. Final amount: ${formatGbp(finalAmount)}\n\nOpen your Gold Card to refer others and earn more stored discounts.`,
+        member.id
+      );
+    }
+  } else if (!redeemedCreditIds.length && friendDiscountPct === 0) {
     await sendWhatsApp(
       member.phone,
       `Visit recorded. Treatment: ${formatGbp(treatmentValue)}. Amount due: ${formatGbp(finalAmount)}`,

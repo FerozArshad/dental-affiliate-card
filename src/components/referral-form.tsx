@@ -24,8 +24,8 @@ export function ReferralForm({ referrerCode, referrerName }: {
       <Card className="text-center">
         <p className="text-lg font-semibold text-emerald-300">You&apos;re in!</p>
         <p className="mt-2 text-stone-400">
-          You now have your own Gold Card. Book your visit for 5% off — then share
-          your link so others can join too.
+          You now have your own Gold Card with 5% stored. Share your link so
+          others can join too.
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <Link
@@ -68,7 +68,7 @@ export function ReferralForm({ referrerCode, referrerName }: {
         </div>
         {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
         <Button type="submit" variant="gold" className="w-full" disabled={pending}>
-          {pending ? "Joining..." : "Join & get 5% off first visit"}
+          {pending ? "Joining..." : "Join & get 5% stored"}
         </Button>
       </form>
     </Card>

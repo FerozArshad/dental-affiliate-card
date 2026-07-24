@@ -28,9 +28,9 @@ export default async function HomePage() {
           The Dental Scotland Gold Card
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-stone-400">
-          Join and get 5% stored on your Gold Card. Share your link — friends get
-          5% when they join too. After they visit, you earn more stored rewards.
-          No cash payouts.
+          Join and get <strong className="text-amber-200">5% stored</strong> on
+          your Gold Card. Share your link — your friend gets 5%, and you get
+          another 5% when they join. No cash payouts.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link href="/join">
@@ -52,12 +52,12 @@ export default async function HomePage() {
           {
             icon: Gift,
             title: "Stored discounts",
-            text: "5–10% off next family treatment — not cash",
+            text: "5% stored on your card at join — not cash",
           },
           {
             icon: Users,
             title: "Family sharing + tiers",
-            text: "Silver → Gold → Platinum as referrals grow",
+            text: "Friend joins → you both get 5%. Climb Silver → Gold → Platinum",
           },
           {
             icon: MessageCircle,
@@ -100,12 +100,12 @@ export default async function HomePage() {
       <section className="mt-16 rounded-3xl border border-white/10 bg-gradient-to-br from-amber-500/10 to-transparent p-8">
         <h2 className="text-xl font-semibold">How the discount process works</h2>
         <ol className="mt-4 space-y-3 text-sm text-stone-300">
-          <li>1. Scan desk QR → join → get 5% stored on your Gold Card</li>
-          <li>2. Share your referral link with family/friend</li>
-          <li>3. Friend joins → gets their own Gold Card + 5% stored too</li>
+          <li>1. Scan desk QR / join → you get 5% stored on your Gold Card</li>
+          <li>2. Share your referral link with family or a friend</li>
+          <li>3. Friend joins → they get 5% stored, and you get 5% stored too</li>
           <li>4. Friend can share their own link and grow the chain</li>
-          <li>5. After friend&apos;s first visit, you earn another stored family discount</li>
-          <li>6. At treatment, use stored % online or at the front desk (not cash)</li>
+          <li>5. At treatment, stored discounts are applied (they can combine, up to 20%)</li>
+          <li>6. Pay at the desk or online — discount comes off the bill</li>
         </ol>
       </section>
     </div>

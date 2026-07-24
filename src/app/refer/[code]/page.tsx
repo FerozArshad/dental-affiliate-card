@@ -20,12 +20,11 @@ export default async function ReferPage({
           You&apos;ve been invited
         </p>
         <h1 className="mt-3 text-3xl font-bold text-white">
-          Get {REFERRAL_DISCOUNT_PERCENT}% on your Gold Card
+          Get {REFERRAL_DISCOUNT_PERCENT}% off your treatment
         </h1>
         <p className="mt-3 text-stone-400">
           {member.name} shared their {member.practice.name} Gold Card. Chat with
-          our assistant to join — {REFERRAL_DISCOUNT_PERCENT}% is stored on your
-          card as soon as you sign up.
+          our assistant to join — you&apos;re registered automatically.
         </p>
       </div>
       <div className="mt-8">
@@ -39,9 +38,9 @@ export default async function ReferPage({
       </div>
       <div className="mt-6 space-y-2 text-center text-xs text-stone-500">
         <p>
-          You get {REFERRAL_DISCOUNT_PERCENT}% stored when you join. After your
-          first visit, {member.name.split(" ")[0]} earns another stored family
-          discount (not cash).
+          After your visit, {member.name.split(" ")[0]} earns{" "}
+          {REFERRAL_DISCOUNT_PERCENT}% off their family&apos;s next treatment
+          (stored — not cash).
         </p>
         <p>
           You also get your own Gold Card and referral link to invite others.

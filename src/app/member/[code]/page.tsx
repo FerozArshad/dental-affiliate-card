@@ -7,7 +7,7 @@ import { QrBlock } from "@/components/qr-block";
 import { PayOnline } from "@/components/pay-online";
 import { Card } from "@/components/ui/card";
 import { getMemberByCode } from "@/lib/actions";
-import { getAppBaseUrl, getTier, stackDiscounts } from "@/lib/constants";
+import { getAppBaseUrl, getTier, stackDiscounts, REFERRAL_DISCOUNT_PERCENT } from "@/lib/constants";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default async function MemberPage({
@@ -204,8 +204,8 @@ export default async function MemberPage({
                   </p>
                   <p className="text-xs text-stone-500">
                     {ref.status === "completed"
-                      ? `Completed — they have their own card & can refer too`
-                      : "Pending first visit"}
+                      ? `Joined — you both earned ${REFERRAL_DISCOUNT_PERCENT}% stored`
+                      : "Pending"}
                   </p>
                 </div>
               ))}

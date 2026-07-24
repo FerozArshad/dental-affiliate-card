@@ -17,9 +17,8 @@ export default async function JoinPage() {
           Chat to join {practice.name}
         </h1>
         <p className="mt-3 text-stone-400">
-          Sign up in a few taps — get your Gold Card with{" "}
-          {REFERRAL_DISCOUNT_PERCENT}% stored, ready to use. Then share your link
-          so friends get {REFERRAL_DISCOUNT_PERCENT}% too.
+          Our assistant signs you up in a few taps — you&apos;re auto-registered
+          and get your Gold Card instantly.
         </p>
       </div>
       <div className="mt-8">
