@@ -28,10 +28,9 @@ export default async function HomePage() {
           The Dental Scotland Gold Card
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-stone-400">
-          Refer family &amp; friends — they get 5% off their treatment. You earn
-          5% off your family&apos;s{" "}
-          <strong className="text-amber-200">next treatment</strong>, stored on
-          your card as credit. No cash payouts.
+          Join and get 5% stored on your Gold Card. Share your link — friends get
+          5% when they join too. After they visit, you earn more stored rewards.
+          No cash payouts.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link href="/join">
@@ -101,12 +100,12 @@ export default async function HomePage() {
       <section className="mt-16 rounded-3xl border border-white/10 bg-gradient-to-br from-amber-500/10 to-transparent p-8">
         <h2 className="text-xl font-semibold">How the discount process works</h2>
         <ol className="mt-4 space-y-3 text-sm text-stone-300">
-          <li>1. Front desk enrolls patient → WhatsApp Gold Card sent</li>
-          <li>2. Patient shares referral link with family/friend</li>
-          <li>3. Friend joins → gets their own Gold Card + 5% off first visit</li>
+          <li>1. Scan desk QR → join → get 5% stored on your Gold Card</li>
+          <li>2. Share your referral link with family/friend</li>
+          <li>3. Friend joins → gets their own Gold Card + 5% stored too</li>
           <li>4. Friend can share their own link and grow the chain</li>
-          <li>5. After friend&apos;s visit, referrer earns 5% stored discount for family&apos;s next treatment</li>
-          <li>6. At next visit, front desk applies stored discount from the ledger</li>
+          <li>5. After friend&apos;s first visit, you earn another stored family discount</li>
+          <li>6. At treatment, use stored % online or at the front desk (not cash)</li>
         </ol>
       </section>
     </div>

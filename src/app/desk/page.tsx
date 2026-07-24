@@ -38,8 +38,8 @@ export default async function DeskPage() {
         <h2 className="font-semibold text-white">Staff script</h2>
         <ol className="mt-3 space-y-2 text-sm text-stone-300">
           <li>1. “Would you like our Gold Card? Scan this QR.”</li>
-          <li>2. Patient joins → gets card + referral link.</li>
-          <li>3. “Share with family — they get 5% off, you earn a stored discount.”</li>
+          <li>2. Patient joins → gets card with 5% stored ready to use.</li>
+          <li>3. “Share with family — they get 5% when they join too.”</li>
         </ol>
         <Link
           href="/enroll"

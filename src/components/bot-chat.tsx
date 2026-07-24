@@ -31,8 +31,8 @@ export function BotChat({
   relationshipDefault?: string;
 }) {
   const intro = referrerName
-    ? `Hi! I'm the ${practiceName} assistant. ${referrerName} invited you to our Gold Card — you'll get ${discountPercent}% off your first treatment, and your own card to share with family.`
-    : `Hi! I'm the ${practiceName} assistant. Join our Gold Card to get member discounts and refer family for ${discountPercent}% off — you earn stored discounts too (not cash).`;
+    ? `Hi! I'm the ${practiceName} assistant. ${referrerName} invited you — join now and get ${discountPercent}% stored on your Gold Card, ready to use. You'll also get your own link to share.`
+    : `Hi! I'm the ${practiceName} assistant. Join our Gold Card and get ${discountPercent}% stored on your card straight away. Share your link — friends get ${discountPercent}% when they join too.`;
 
   const [messages, setMessages] = useState<Msg[]>([
     { from: "bot", text: intro },
@@ -121,10 +121,10 @@ export function BotChat({
         );
       } else {
         pushBot(
-          `You're registered! ✅\n\nYour Gold Card code: ${res.memberCode}\n${
+          `You're registered! ✅\n\nYour Gold Card code: ${res.memberCode}\nYou have ${discountPercent}% stored on your card — ready to use.${
             referrerName
-              ? `You'll get ${discountPercent}% off your first visit (referred by ${referrerName}).`
-              : `Refer family & friends to earn stored discounts.`
+              ? `\n(Referred by ${referrerName})`
+              : `\nShare your link so friends get ${discountPercent}% when they join.`
           }`
         );
         pushBot("Tap below to open your Gold Card and start sharing.");
