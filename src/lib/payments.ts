@@ -1,14 +1,10 @@
 /**
- * Stripe payment scaffolding.
+ * Stripe Checkout for patient treatment payments.
  *
- * Patients pay for treatment via Stripe (and WhatsApp Pay where available).
- * Full checkout is wired once the following env vars are set:
- *   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
- *
- * This module intentionally has no hard dependency on the `stripe` package yet,
- * so the app builds and deploys before keys are provided. When keys are ready,
- * we install `stripe` and implement createCheckoutSession below.
+ * Env: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEXT_PUBLIC_APP_URL
  */
+
+import { BRAND } from "@/lib/constants";
 
 export function isStripeConfigured() {
   return Boolean(process.env.STRIPE_SECRET_KEY);
@@ -36,15 +32,42 @@ export async function createTreatmentCheckout(
   try {
     const Stripe = (await import("stripe")).default;
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const base =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://affiliate.dentalscotland.com";
+    const logoUrl = `${base.replace(/\/$/, "")}${BRAND.logo}`;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      locale: "en-GB",
+      // Dental Scotland branding on the hosted Stripe Checkout page
+      branding_settings: {
+        display_name: BRAND.name,
+        background_color: "#0c0a09", // stone-950
+        button_color: "#d97706", // amber-600 (Gold Card)
+        border_style: "rounded",
+        font_family: "inter",
+        logo: {
+          type: "url",
+          url: logoUrl,
+        },
+      },
+      custom_text: {
+        submit: {
+          message: `Paying ${BRAND.name} — Gold Card discounts are already applied to this total.`,
+        },
+        after_submit: {
+          message: `Thank you. You'll return to your Gold Card. ${BRAND.tagline}.`,
+        },
+      },
       line_items: [
         {
           price_data: {
             currency: "gbp",
-            product_data: { name: input.description },
+            product_data: {
+              name: input.description,
+              description: `${BRAND.name} · Gold Card treatment payment`,
+              images: [logoUrl],
+            },
             unit_amount: Math.round(input.amountGbp * 100),
           },
           quantity: 1,
